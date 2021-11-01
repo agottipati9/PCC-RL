@@ -32,7 +32,8 @@ class Trace():
     def __init__(self, timestamps: Union[List[float], List[int]],
                  bandwidths: Union[List[int], List[float]],
                  delays: Union[List[int], List[float]], loss_rate: float,
-                 queue_size: int, delay_noise: float = 0, offset=0):
+                 queue_size: int, delay_noise: float = 0, offset=0,
+                 config: List[Union[float, int]] = []):
         assert len(timestamps) == len(bandwidths)
         self.timestamps = timestamps
         if len(timestamps) >= 2:
@@ -53,6 +54,11 @@ class Trace():
         self.noises = []
         self.noise_idx = 0
         self.return_noise = False
+        self.config = config
+
+    @property
+    def config_vector(self):
+        return np.array(self.config)
 
     @property
     def avg_bw(self) -> float:
@@ -166,7 +172,8 @@ class Trace():
                 'delays': self.delays,
                 'loss': self.loss_rate,
                 'queue': self.queue_size,
-                'delay_noise': self.delay_noise}
+                'delay_noise': self.delay_noise,
+                'config': self.config}
         write_json_file(filename, data)
 
     @staticmethod
@@ -285,9 +292,15 @@ def generate_trace(duration_range: Tuple[float, float],
 
     queue_size = np.random.uniform(queue_size_range[0], queue_size_range[1])
     bdp = np.max(bandwidths) / BYTES_PER_PACKET / BITS_PER_BYTE * 1e6 * np.max(delays) * 2 / 1000
-    queue_size = max(2, int(bdp * queue_size))
+    queue_size_pkt = max(2, int(bdp * queue_size))
 
-    ret_trace = Trace(timestamps, bandwidths, delays, loss_rate, queue_size, delay_noise)
+    config_vector = [bandwidth_lower_bound_range[0],
+        bandwidth_lower_bound_range[1], bandwidth_upper_bound_range[0],
+        bandwidth_upper_bound_range[1], delay_range[0], delay_range[1],
+        queue_size, loss_rate, T_s, duration, delay_noise]
+
+    ret_trace = Trace(timestamps, bandwidths, delays, loss_rate,
+                      queue_size_pkt, delay_noise, config=config_vector)
     return ret_trace
 
 

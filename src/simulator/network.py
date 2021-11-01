@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import glob
 import heapq
 import os
 import random
@@ -279,7 +280,7 @@ class Network():
         # else:  # latency decrease
         #     self.senders[0].start_stage = False
         #     # self.senders[0].max_tput = max(self.senders[0].recv_rate, self.senders[0].max_tput)
-        return reward * REWARD_SCALE
+        return reward #* REWARD_SCALE
 
 
 class Sender():
@@ -553,6 +554,7 @@ class SimulatedNetworkEnv(gym.Env):
         """Network environment used in simulation.
         congestion_control_type: aurora is pcc-rl. cubic is TCPCubic.
         """
+        self.save_dir = ''
         self.record_pkt_log = record_pkt_log
         self.config_file = config_file
         self.delta_scale = delta_scale
@@ -670,6 +672,9 @@ class SimulatedNetworkEnv(gym.Env):
         self.net.reset()
         self.current_trace = np.random.choice(self.traces)
         self.current_trace.reset()
+        n_traces = len(glob.glob(os.path.join(self.save_dir, "*.json")))
+        if self.train_flag:
+            self.current_trace.dump(os.path.join(self.save_dir, "trace{}.json".format(n_traces)))
         self.create_new_links_and_senders()
         self.net = Network(self.senders, self.links, self)
         self.episodes_run += 1

@@ -1,4 +1,5 @@
 import csv
+import glob
 import logging
 import multiprocessing as mp
 import os
@@ -18,6 +19,7 @@ import tqdm
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
 from stable_baselines import PPO1
+from my_ppo1 import MyPPO1
 # from stable_baselines.bench import Monitor
 from stable_baselines.common.callbacks import BaseCallback
 from stable_baselines.common.policies import FeedForwardPolicy
@@ -36,40 +38,6 @@ if type(tf.contrib) != types.ModuleType:  # if it is LazyLoader
     tf.contrib._warning = None
 
 set_tf_loglevel(logging.FATAL)
-
-class MyPPO1(PPO1):
-
-    def predict(self, observation, state=None, mask=None, deterministic=False, saliency=False):
-        if state is None:
-            state = self.initial_state
-        if mask is None:
-            mask = [False for _ in range(self.n_envs)]
-        observation = np.array(observation)
-        vectorized_env = self._is_vectorized_observation(observation, self.observation_space)
-
-        observation = observation.reshape((-1,) + self.observation_space.shape)
-        grad = None
-        if deterministic and saliency:
-            actions, _, states, _, grad = self.step(observation, state, mask, deterministic=deterministic, saliency=saliency)
-        else:
-            actions, _, states, _ = self.step(observation, state, mask, deterministic=deterministic)
-
-        clipped_actions = actions
-        # Clip the actions to avoid out of bound error
-        if isinstance(self.action_space, gym.spaces.Box):
-            clipped_actions = np.clip(actions, self.action_space.low, self.action_space.high)
-
-        if not vectorized_env:
-            if state is not None:
-                raise ValueError("Error: The environment must be vectorized when using recurrent policies.")
-            clipped_actions = clipped_actions[0]
-
-        if deterministic and saliency:
-            return clipped_actions, states, grad
-        elif deterministic and saliency:
-            return clipped_actions, states
-        else:
-            return clipped_actions, states
 
 
 class MyMlpPolicy(FeedForwardPolicy):
@@ -168,6 +136,55 @@ class SaveOnBestTrainingRewardCallback(BaseCallback):
                 with self.model.graph.as_default():
                     saver = tf.train.Saver()
                     saver.save(self.model.sess, model_path_to_save)
+
+                print('test training traces')
+                for worker_id in range(self.aurora.comm.Get_size()):
+                    # for trace_file in glob.glob(os.path.join(
+                    #     "/tank/zxxia/PCC-RL/results_0928/verify_alp_continuity_test/bw_delay2/seed_42/train_traces/worker_{}_iteration_{}/trace*.json".format(
+                    #     worker_id, int(self.n_calls / self.check_freq)-1))):
+                    #     # "/tank/zxxia/PCC-RL/results_0928/verify_alp_continuity_test/bw_delay/seed_42/train_traces/worker_{}_iteration_{}/trace*.json".format(
+                    #     train_trace = Trace.load_from_file(trace_file)
+                    #     log_dir = os.path.join(
+                    #         os.path.splitext(trace_file)[0],
+                    #         'step_{}'.format(int(self.num_timesteps)))
+                    #     os.makedirs(log_dir, exist_ok=True)
+                    #     # print(log_dir, self.n_calls/ self.check_freq, self.num_timesteps/self.check_freq)
+                    #     self.aurora._test(train_trace, log_dir)
+                    # for trace_file in glob.glob(os.path.join(
+                    #     "/tank/zxxia/PCC-RL/results_0928/verify_alp_continuity_test/bw_delay2/seed_42/train_traces/worker_{}_iteration_{}/trace*.json".format(
+                    #     worker_id, int(self.n_calls / self.check_freq)-2))):
+                    #     # "/tank/zxxia/PCC-RL/results_0928/verify_alp_continuity_test/bw_delay/seed_42/train_traces/worker_{}_iteration_{}/trace*.json".format(
+                    #     train_trace = Trace.load_from_file(trace_file)
+                    #     log_dir = os.path.join(
+                    #         os.path.splitext(trace_file)[0],
+                    #         'step_{}'.format(int(self.num_timesteps)))
+                    #     os.makedirs(log_dir, exist_ok=True)
+                    #     # print(int(self.num_timesteps / self.check_freq), log_dir)
+                    #     self.aurora._test(train_trace, log_dir)
+
+                    for trace_file in glob.glob(os.path.join(
+                        "/tank/zxxia/PCC-RL/results_0928/verify_alp_continuity_test/bw_delay2/seed_42/ref_traces/worker_{}_iteration_{}/trace*.json".format(
+                        worker_id, int(self.n_calls / self.check_freq)-1))):
+                        # "/tank/zxxia/PCC-RL/results_0928/verify_alp_continuity_test/bw_delay/seed_42/train_traces/worker_{}_iteration_{}/trace*.json".format(
+                        train_trace = Trace.load_from_file(trace_file)
+                        log_dir = os.path.join(
+                            os.path.splitext(trace_file)[0],
+                            'step_{}'.format(int(self.num_timesteps)))
+                        os.makedirs(log_dir, exist_ok=True)
+                        # print(log_dir, self.n_calls/ self.check_freq, self.num_timesteps/self.check_freq)
+                        self.aurora._test(train_trace, log_dir)
+
+                    for trace_file in glob.glob(os.path.join(
+                        "/tank/zxxia/PCC-RL/results_0928/verify_alp_continuity_test/bw_delay2/seed_42/ref_traces/worker_{}_iteration_{}/trace*.json".format(
+                        worker_id, int(self.n_calls / self.check_freq)-2))):
+                        # "/tank/zxxia/PCC-RL/results_0928/verify_alp_continuity_test/bw_delay/seed_42/train_traces/worker_{}_iteration_{}/trace*.json".format(
+                        train_trace = Trace.load_from_file(trace_file)
+                        log_dir = os.path.join(
+                            os.path.splitext(trace_file)[0],
+                            'step_{}'.format(int(self.num_timesteps)))
+                        os.makedirs(log_dir, exist_ok=True)
+                        # print(int(self.num_timesteps / self.check_freq), log_dir)
+                        self.aurora._test(train_trace, log_dir)
                 if not self.validation_flag:
                     return True
                 avg_tr_bw = []
@@ -267,7 +284,7 @@ class Aurora():
         if pretrained_model_path is not None:
             if pretrained_model_path.endswith('.ckpt'):
                 model_create_start = time.time()
-                self.model = MyPPO1(MyMlpPolicy, env, verbose=1, seed=seed,
+                self.model = MyPPO1(MyMlpPolicy, env, verbose=0, seed=seed,
                                   optim_stepsize=0.001, schedule='constant',
                                   timesteps_per_actorbatch=timesteps_per_actorbatch,
                                   optim_batchsize=int(
@@ -290,7 +307,7 @@ class Aurora():
                 # model is a tensorflow model to serve
                 self.model = LoadedModel(pretrained_model_path)
         else:
-            self.model = MyPPO1(MyMlpPolicy, env, verbose=1, seed=seed,
+            self.model = MyPPO1(MyMlpPolicy, env, verbose=0, seed=seed,
                               optim_stepsize=0.001, schedule='constant',
                               timesteps_per_actorbatch=timesteps_per_actorbatch,
                               optim_batchsize=int(timesteps_per_actorbatch/12),

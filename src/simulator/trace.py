@@ -1,4 +1,3 @@
-import argparse
 from bisect import bisect_right
 import copy
 import csv
@@ -58,6 +57,8 @@ class Trace():
 
     @property
     def config_vector(self):
+        if not self.config:
+            return None
         return np.array(self.config)
 
     @property
@@ -285,7 +286,7 @@ def generate_trace(duration_range: Tuple[float, float],
     T_s = float(np.random.uniform(T_s_range[0], T_s_range[1], 1))
     delay_noise = float(np.random.uniform(delay_noise_range[0], delay_noise_range[1], 1))
 
-    timestamps, bandwidths, delays = generate_bw_delay_series(
+    timestamps, bandwidths, delays, bw_lower_bnd, bw_upper_bnd = generate_bw_delay_series(
         T_s, duration, bandwidth_lower_bound_range[0], bandwidth_lower_bound_range[1],
         bandwidth_upper_bound_range[0], bandwidth_upper_bound_range[1],
         delay_range[0], delay_range[1])
@@ -294,10 +295,8 @@ def generate_trace(duration_range: Tuple[float, float],
     bdp = np.max(bandwidths) / BYTES_PER_PACKET / BITS_PER_BYTE * 1e6 * np.max(delays) * 2 / 1000
     queue_size_pkt = max(2, int(bdp * queue_size))
 
-    config_vector = [bandwidth_lower_bound_range[0],
-        bandwidth_lower_bound_range[1], bandwidth_upper_bound_range[0],
-        bandwidth_upper_bound_range[1], delay_range[0], delay_range[1],
-        queue_size, loss_rate, T_s, duration, delay_noise]
+    config_vector = [bw_lower_bnd, bw_upper_bnd, delays[0], queue_size,
+                     loss_rate, T_s, duration, delay_noise]
 
     ret_trace = Trace(timestamps, bandwidths, delays, loss_rate,
                       queue_size_pkt, delay_noise, config=config_vector)
@@ -330,242 +329,10 @@ def load_bandwidth_from_file(filename: str):
     return timestamps, bandwidths
 
 
-def generate_bw_series(prob_stay: float, T_s: float, cov: float, duration: float,
-                       steps: int, min_bw: float, max_bw: float,
-                       timestep: float = 1):
-    """Generate a time-variant bandwidth series.
-
-    Args:
-        prob_stay: probability of staying in one state. Value range: [0, 1].
-        T_s: how often the noise is changing. Value range: [0, inf)
-        cov: maximum percentage of noise with resepect current bandwidth
-            value. Value range: [0, 1].
-        duration: trace duration in second.
-        steps: number of steps.
-        min_bw: minimum bandwidth in Mbps.
-        max_bw: maximum bandwidth in Mbps.
-        seed: numpy random seed.
-        timestep: a bandwidth value every timestep seconds. Default: 1 second.
-
-    """
-
-    # equivalent to Pensieve's way of computing switch parameter
-    coeffs = np.ones(steps - 1)
-    coeffs[0] = -1
-    switch_parameter = np.real(np.roots(coeffs)[0])
-    """Generate a bandwidth series."""
-    # get bandwidth levels (in Mbps)
-    bw_states = []
-    curr = min_bw
-    for _ in range(0, steps):
-        bw_states.append(curr)
-        curr += (max_bw-min_bw)/(steps-1)
-
-    # list of transition probabilities
-    transition_probs = []
-    # assume you can go steps-1 states away (we will normalize this to the
-    # actual scenario)
-    for z in range(1, steps-1):
-        transition_probs.append(1/(switch_parameter**z))
-
-    # takes a state and decides what the next state is
-    current_state = np.random.randint(0, len(bw_states)-1)
-    current_variance = cov * bw_states[current_state]
-    ts = 0
-    cnt = 0
-    trace_time = []
-    trace_bw = []
-    noise = 0
-    while ts < duration:
-        # prints timestamp (in seconds) and throughput (in Mbits/s)
-        if cnt <= 0:
-            noise = np.random.normal(0, current_variance, 1)[0]
-            cnt = T_s
-        # the gaussian val is at least 0.1
-        gaus_val = max(0.1, bw_states[current_state] + noise)
-        trace_time.append(ts)
-        trace_bw.append(gaus_val)
-        cnt -= 1
-        next_val = transition(current_state, prob_stay, bw_states,
-                              transition_probs)
-        if current_state != next_val:
-            cnt = 0
-        current_state = next_val
-        current_variance = cov * bw_states[current_state]
-        ts += timestep
-    return trace_time, trace_bw
-
-
-def transition(state, prob_stay, bw_states, transition_probs):
-    """Hidden Markov State transition."""
-    # variance_switch_prob, sigma_low, sigma_high,
-    transition_prob = np.random.uniform()
-
-    if transition_prob < prob_stay:  # stay in current state
-        return state
-    else:  # pick appropriate state!
-        # next_state = state
-        curr_pos = state
-        # first find max distance that you can be from current state
-        max_distance = max(curr_pos, len(bw_states)-1-curr_pos)
-        # cut the transition probabilities to only have possible number of
-        # steps
-        curr_transition_probs = transition_probs[0:max_distance]
-        trans_sum = sum(curr_transition_probs)
-        normalized_trans = [x/trans_sum for x in curr_transition_probs]
-        # generate a random number and see which bin it falls in to
-        trans_switch_val = np.random.uniform()
-        running_sum = 0
-        num_switches = -1
-        for ind in range(0, len(normalized_trans)):
-            # this is the val
-            if (trans_switch_val <= (normalized_trans[ind] + running_sum)):
-                num_switches = ind
-                break
-            else:
-                running_sum += normalized_trans[ind]
-
-        # now check if there are multiple ways to move this many states away
-        switch_up = curr_pos + num_switches
-        switch_down = curr_pos - num_switches
-        # can go either way
-        if (switch_down >= 0 and switch_up <= (len(bw_states)-1)):
-            x = np.random.uniform(0, 1, 1)
-            if (x < 0.5):
-                return switch_up
-            else:
-                return switch_down
-        elif switch_down >= 0:  # switch down
-            return switch_down
-        else:  # switch up
-            return switch_up
-
-
-def parse_args():
-    """Parse arguments from the command line."""
-    parser = argparse.ArgumentParser("Generate trace files.")
-    parser.add_argument('--save-dir', type=str, required=True,
-                        help="direcotry to save the model.")
-    parser.add_argument('--config-file', type=str, required=True,
-                        help="config file")
-    parser.add_argument('--seed', type=int, default=42, help='seed')
-    # parser.add_argument('--ntrace', type=int, required=True,
-    #                     help='Number of trace files to be synthesized.')
-    parser.add_argument('--time-variant-bw', action='store_true',
-                        help='Generate time variant bandwidth if specified.')
-    args, unknown = parser.parse_known_args()
-    return args
-
-
-def main():
-    args = parse_args()
-    set_seed(args.seed)
-    os.makedirs(args.save_dir, exist_ok=True)
-    # traces = generate_traces(args.config_file, args.ntrace, args.duration,
-    #                          constant_bw=not args.time_variant_bw)
-    conf = read_json_file(args.config_file)
-    dim_vary = None
-    for dim in conf:
-        if len(conf[dim]) > 1:
-            dim_vary = conf[dim]
-        elif len(conf[dim]) == 1:
-            pass
-        else:
-            raise RuntimeError
-
-    assert dim_vary != None
-
-    for value in dim_vary:
-        os.makedirs(os.path.join(args.save_dir, str(value[1])), exist_ok=True)
-        for i in range(10):
-            tr = generate_trace(
-                duration_range=conf['duration'][0] if len(
-                    conf['duration']) == 1 else value,
-                bandwidth_range=conf['bandwidth'][0] if len(
-                    conf['bandwidth']) == 1 else (value[1], value[1]),
-                delay_range=conf['delay'][0] if len(
-                    conf['delay']) == 1 else value,
-                loss_rate_range=conf['loss'][0] if len(
-                    conf['loss']) == 1 else value,
-                queue_size_range=conf['queue'][0] if len(
-                    conf['queue']) == 1 else value,
-                d_bw_range=conf['d_bw'][0] if len(conf['d_bw']) == 1 else value,
-                d_delay_range=conf['d_delay'][0] if len(
-                    conf['d_delay']) == 1 else value,
-                T_s_range=conf['T_s'][0] if len(conf['T_s']) == 1 else value,
-                delay_noise_range=conf['delay_noise'][0] if len(
-                    conf['delay_nosie']) == 1 else value,
-                constant_bw=False)
-            tr.dump(os.path.join(args.save_dir, str(value[1]),
-                                 'trace{:04d}.json'.format(i)))
-
-# def generate_bw_delay_series(d_bw: float, d_delay, T_s: float,
-#                              duration: float, min_tp: float, max_tp: float,
-#                              min_delay: float, max_delay: float):
-#     timestamps = []
-#     bandwidths = []
-#     delays = []
-#     round_digit = 5
-#     # if min_tp != max_tp:
-#     #     target_bw = 0.6 #
-#     # else:
-#     target_bw = round(np.exp(float(np.random.uniform(
-#             np.log(min_tp), np.log(max_tp), 1))), round_digit)
-#
-#     bw_val = round(np.exp(float(np.random.uniform(
-#         np.log(min_tp), np.log(max_tp), 1))), round_digit)
-#     if min_delay != max_delay:
-#         target_delay = 5
-#     else:
-#         target_delay = round(float(np.random.uniform(min_delay, max_delay, 1)), round_digit)
-#     delay_val = round(float(np.random.uniform(
-#         min_delay, max_delay, 1)), round_digit)
-#     ts = 0
-#     bw_change_ts = 0
-#     delay_change_ts = 0
-#
-#     # hard code default values
-#     # if min_tp != max_tp and d_bw == 0:
-#     #     target_bw = 0.6
-#     # if min_delay != max_delay and d_delay == 0:
-#     #     target_delay = 5
-#     # handle T_s = 0 is wrong
-#     # if T_s == 0:
-#     #     target_delay = 5
-#     #     target_bw = 0.6
-#
-#     while ts < duration:
-#         if T_s !=0 and ts - bw_change_ts >= T_s:
-#             new_bw = bw_val * (1 + float(np.random.normal(0, d_bw, 1)))
-#             bw_val = max(min_tp, new_bw)
-#             bw_change_ts = ts
-#
-#         if T_s != 0 and ts - delay_change_ts >= T_s:
-#             new_delay = delay_val * \
-#                 (1 + float(np.random.normal(0, d_delay, 1)))
-#             delay_val = min(max(min_delay, new_delay), max_delay)
-#             delay_change_ts = ts
-#
-#         ts = round(ts, round_digit)
-#         timestamps.append(ts)
-#         bandwidths.append(bw_val)
-#         delays.append(delay_val)
-#         ts += 0.1
-#     timestamps.append(round(duration, round_digit))
-#     bandwidths.append(bw_val)
-#     delays.append(delay_val)
-#
-#     bw_mean = np.mean(np.array(bandwidths))
-#     bandwidths = [round(float(val / bw_mean * target_bw), round_digit) for val in bandwidths]
-#     delay_mean = np.mean(np.array(delays))
-#     delays = [round(float(val / delay_mean * target_delay), round_digit) for val in delays]
-#     return timestamps, bandwidths, delays
-
-
 def generate_bw_delay_series(T_s: float, duration: float,
                              min_bw_lower_bnd: float, min_bw_upper_bnd: float,
                              max_bw_lower_bnd: float, max_bw_upper_bnd: float,
-                             min_delay: float, max_delay: float)-> Tuple[List[float], List[float], List[float]]:
+                             min_delay: float, max_delay: float) -> Tuple[List[float], List[float], List[float], float, float]:
     timestamps = []
     bandwidths = []
     delays = []
@@ -597,7 +364,8 @@ def generate_bw_delay_series(T_s: float, duration: float,
     bandwidths.append(bw_val)
     delays.append(delay_val)
 
-    return timestamps, bandwidths, delays
+    return timestamps, bandwidths, delays, bw_lower_bnd, bw_upper_bnd
+
 
 def generate_trace_from_config_file(config_file: str, duration: int = 30) -> Trace:
     config = read_json_file(config_file)
@@ -626,9 +394,6 @@ def generate_trace_from_config_file(config_file: str, duration: int = 30) -> Tra
             else:
                 duration_min, duration_max = duration, duration
 
-            # used by bandwidth generation
-            # d_bw_min, d_bw_max = env_config['d_bw'] if 'd_bw' in env_config else (0, 0)
-            # d_delay_min, d_delay_max = env_config['d_delay'] if 'd_delay' in env_config else (0, 0)
             delay_noise_min, delay_noise_max = env_config['delay_noise'] if 'delay_noise' in env_config else (0, 0)
             T_s_min, T_s_max = env_config['T_s'] if 'T_s' in env_config else (1, 1)
             return generate_trace((duration_min, duration_max),
@@ -640,6 +405,3 @@ def generate_trace_from_config_file(config_file: str, duration: int = 30) -> Tra
                                   (T_s_min, T_s_max),
                                   (delay_noise_min, delay_noise_max))
     raise ValueError("This line should never be reached.")
-
-if __name__ == "__main__":
-    main()

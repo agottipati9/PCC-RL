@@ -183,7 +183,8 @@ class Trace():
         tr = Trace(trace_data['timestamps'], trace_data['bandwidths'],
                    trace_data['delays'], trace_data['loss'],
                    trace_data['queue'], delay_noise=trace_data['delay_noise']
-                   if 'delay_noise' in trace_data else 0)
+                   if 'delay_noise' in trace_data else 0, config=trace_data['config'])
+
         return tr
 
     @staticmethod

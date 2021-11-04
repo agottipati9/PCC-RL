@@ -244,7 +244,15 @@ class Genet:
                     seed=self.seed, tot_step=int(7.2e4),
                     config_file=self.cur_config_file, model_path=self.model_path)
             subprocess.run(cmd.split(' '))
+            old_model_path = self.model_path
             self.model_path = latest_model_from(training_save_dir)
+            print(old_model_path, self.model_path)
+            test_training_traces(
+                self.model_path, old_model_path, [os.path.join(
+                training_save_dir, f'worker{worker_id}_train_configs.csv')
+                for worker_id in range(self.nproc)], training_save_dir)
+            test_ref_traces(
+                self.model_path, old_model_path, training_save_dir)
             print(self.model_path)
             assert self.model_path
 
@@ -342,6 +350,70 @@ def save_args(args):
     """Write arguments to a log file."""
     if args.save_dir and os.path.exists(args.save_dir):
         write_json_file(os.path.join(args.save_dir, 'cmd.json'), args.__dict__)
+
+def test_training_traces(new_model_path: str, old_model_path: str,
+                         config_files: List[str], save_dir: str):
+    p0 = subprocess.Popen(['cat'] + config_files, stdout=subprocess.PIPE,
+                          stderr=subprocess.PIPE)
+    p1 = subprocess.Popen(['sort'], stdin=p0.stdout, stdout=subprocess.PIPE,
+                          stderr=subprocess.PIPE)
+    p2 = subprocess.Popen(['uniq'], stdin=p1.stdout, stdout=subprocess.PIPE,
+                          stderr=subprocess.PIPE)
+    o, e = p2.communicate()
+    config_list = o.decode('ascii').strip().split('\n')
+    print(config_list)
+    trs = []
+    old_save_dirs = [] # results of old model
+    new_save_dirs = [] # results of new model
+    for config_id, config in enumerate(config_list):
+        bw_low_bnd, bw_up_bnd, delay, queue, loss, T_s, duration, delay_noise = map(float, config.split(','))
+        for tr_id in range(10):
+            tr = generate_trace((duration, duration), (bw_low_bnd, bw_low_bnd),
+                                (bw_up_bnd, bw_up_bnd), (delay, delay),
+                                (loss, loss), (queue, queue), (T_s, T_s),
+                                (delay_noise, delay_noise))
+            trs.append(tr)
+            os.makedirs(os.path.join(save_dir, 'train_config_traces', f"config{config_id}",
+                                     f'trace{tr_id}'), exist_ok=True)
+            tr.dump(os.path.join(save_dir, 'train_config_traces', f"config{config_id}",
+                                 f'trace{tr_id}', 'trace.json'))
+            old_save_dirs.append(os.path.join(
+                save_dir, 'train_config_traces', f"config{config_id}", f'trace{tr_id}', 'before'))
+            new_save_dirs.append(os.path.join(
+                save_dir, 'train_config_traces', f"config{config_id}", f'trace{tr_id}', 'after'))
+    test_on_traces(old_model_path, trs, old_save_dirs, 8, 20, False, False) # test old model
+    test_on_traces(new_model_path, trs, new_save_dirs, 8, 20, False, False) # test new model
+
+
+
+def test_ref_traces(new_model_path: str, old_model_path: str, save_dir: str):
+    config_list = []
+    for bw in [3.16, 60, ]:
+        for delay in [10, 101]:
+            config = [0.1, bw, delay, 1.6, 0, 7.5, 30, 0]
+            config_list.append(config)
+    print(config_list)
+    trs = []
+    old_save_dirs = [] # results of old model
+    new_save_dirs = [] # results of new model
+    for config_id, config in enumerate(config_list):
+        bw_low_bnd, bw_up_bnd, delay, queue, loss, T_s, duration, delay_noise = config
+        for tr_id in range(10):
+            tr = generate_trace((duration, duration), (bw_low_bnd, bw_low_bnd),
+                                (bw_up_bnd, bw_up_bnd), (delay, delay),
+                                (loss, loss), (queue, queue), (T_s, T_s),
+                                (delay_noise, delay_noise))
+            trs.append(tr)
+            os.makedirs(os.path.join(save_dir, 'ref_config_traces', f"config{config_id}",
+                                     f'trace{tr_id}'), exist_ok=True)
+            tr.dump(os.path.join(save_dir, 'ref_config_traces', f"config{config_id}",
+                                 f'trace{tr_id}', 'trace.json'))
+            old_save_dirs.append(os.path.join(
+                save_dir, 'ref_config_traces', f"config{config_id}", f'trace{tr_id}', 'before'))
+            new_save_dirs.append(os.path.join(
+                save_dir, 'ref_config_traces', f"config{config_id}", f'trace{tr_id}', 'after'))
+    test_on_traces(old_model_path, trs, old_save_dirs, 8, 20, False, False) # test old model
+    test_on_traces(new_model_path, trs, new_save_dirs, 8, 20, False, False) # test new model
 
 def main():
     warnings.simplefilter(action='ignore', category=RuntimeWarning)

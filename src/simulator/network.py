@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import csv
 import glob
 import heapq
 import os
@@ -33,6 +34,7 @@ from simulator.network_simulator.constants import (BITS_PER_BYTE, BYTES_PER_PACK
                                  MIN_RATE, REWARD_SCALE)
 from simulator.network_simulator.link import Link
 from simulator.trace import generate_traces
+from mpi4py.MPI import COMM_WORLD
 
 LATENCY_PENALTY = 1.0
 LOSS_PENALTY = 1.0
@@ -549,12 +551,12 @@ class SimulatedNetworkEnv(gym.Env):
     def __init__(self, traces, history_len=10,
                  # features="sent latency inflation,latency ratio,send ratio",
                  features="sent latency inflation,latency ratio,recv ratio",
-                 train_flag=False, delta_scale=1.0, config_file=None,
-                 record_pkt_log: bool = False):
+                 train_flag: bool = False, delta_scale: float = 1.0, config_file=None,
+                 record_pkt_log: bool = False, save_dir: str = ""):
         """Network environment used in simulation.
         congestion_control_type: aurora is pcc-rl. cubic is TCPCubic.
         """
-        self.save_dir = ''
+        self.save_dir = save_dir
         self.record_pkt_log = record_pkt_log
         self.config_file = config_file
         self.delta_scale = delta_scale
@@ -564,9 +566,7 @@ class SimulatedNetworkEnv(gym.Env):
         self.use_cwnd = False
 
         self.history_len = history_len
-        # print("History length: %d" % history_len)
         self.features = features.split(",")
-        # print("Features: %s" % str(self.features))
 
         self.links = None
         self.senders = None
@@ -594,11 +594,6 @@ class SimulatedNetworkEnv(gym.Env):
                                             np.tile(single_obs_max_vec,
                                                     self.history_len),
                                             dtype=np.float32)
-        # single_obs_min_vec = np.array([0, 0, -1e12, 0, 0, 0, 0])
-        # single_obs_max_vec =  np.array([1e12, 1e12, 1e12, 1, 1e12, 1e12, 1e12])
-        # self.observation_space = spaces.Box(single_obs_min_vec,
-        #                                     single_obs_max_vec,
-        #                                     dtype=np.float32)
 
         self.reward_sum = 0.0
         self.reward_ewma = 0.0
@@ -617,15 +612,11 @@ class SimulatedNetworkEnv(gym.Env):
 
     def step(self, actions):
         assert self.senders
-        #print("Actions: %s" % str(actions))
-        # print(actions)
         for i in range(0, 1):  # len(actions)):
-            #print("Updating rate for sender %d" % i)
             action = actions
             self.senders[i].apply_rate_delta(action[0])
             if self.use_cwnd:
                 self.senders[i].apply_cwnd_delta(action[1])
-        # print("Running for %fs" % self.run_dur)
         reward = self.net.run_for_dur(self.run_dur, action=actions[0])
         self.steps_taken += 1
         sender_obs = self._get_all_sender_obs()
@@ -633,13 +624,6 @@ class SimulatedNetworkEnv(gym.Env):
         should_stop = self.current_trace.is_finished(self.net.get_cur_time())
 
         self.reward_sum += reward
-        # print('env step: {}s'.format(time.time() - t_start))
-
-        # sender_obs = np.array([self.senders[0].send_rate,
-        #         self.senders[0].avg_latency,
-        #         self.senders[0].lat_diff, int(self.senders[0].start_stage),
-        #         self.senders[0].max_tput, self.senders[0].min_rtt,
-        #         self.senders[0].latest_rtt])
         return sender_obs, reward, should_stop, {}
 
     def print_debug(self):
@@ -659,22 +643,22 @@ class SimulatedNetworkEnv(gym.Env):
                                self.features,
                                history_len=self.history_len,
                                delta_scale=self.delta_scale)]
-        # self.run_dur = 3 * lat
-        # self.run_dur = 1 * lat
         if not self.senders[0].rtt_samples:
-            # self.run_dur = 0.473
-            # self.run_dur = 5 / self.senders[0].rate
             self.run_dur = 0.01
-            # self.run_dur = self.current_trace.get_delay(0) * 2 / 1000
 
     def reset(self):
         self.steps_taken = 0
         self.net.reset()
         self.current_trace = np.random.choice(self.traces)
         self.current_trace.reset()
-        n_traces = len(glob.glob(os.path.join(self.save_dir, "*.json")))
+        # n_traces = len(glob.glob(os.path.join(self.save_dir, "training_traces", "*.json")))
+        # os.makedirs(os.path.join(self.save_dir, "training_traces"), exist_ok=True)
         if self.train_flag:
-            self.current_trace.dump(os.path.join(self.save_dir, "trace{}.json".format(n_traces)))
+            # self.current_trace.dump(os.path.join(self.save_dir, "training_traces", "worker{}_trace{}.json".format(COMM_WORLD.Get_rank(), self.episodes_run)))
+            with open(os.path.join(self.save_dir, 'worker{}_train_configs.csv'.format(COMM_WORLD.Get_rank())), 'a', 1) as f:
+                csvwriter = csv.writer(f, lineterminator='\n')
+                csvwriter.writerow(self.current_trace.config_vector)
+
         self.create_new_links_and_senders()
         self.net = Network(self.senders, self.links, self)
         self.episodes_run += 1

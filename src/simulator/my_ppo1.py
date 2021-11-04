@@ -100,9 +100,9 @@ class MyPPO1(PPO1):
 
                     # self.env.save_dir = "/tank/zxxia/PCC-RL/results_0928/verify_alp_continuity_test/bw_delay/seed_42/train_traces/worker_{}_iteration_{}".format(
                     #         MPI.COMM_WORLD.Get_rank(), iters_so_far)
-                    self.env.save_dir = "/tank/zxxia/PCC-RL/results_0928/verify_alp_continuity_test/bw_delay2/seed_42/ref_traces/worker_{}_iteration_{}".format(
-                            MPI.COMM_WORLD.Get_rank(), iters_so_far)
-                    os.makedirs(self.env.save_dir, exist_ok=True)
+                    # self.env.save_dir = "/tank/zxxia/PCC-RL/results_0928/verify_alp_continuity_test/bw_delay2/seed_42/ref_traces/worker_{}_iteration_{}".format(
+                    #         MPI.COMM_WORLD.Get_rank(), iters_so_far)
+                    # os.makedirs(self.env.save_dir, exist_ok=True)
 
                     t_collection_start = time.time()
                     seg = seg_gen.__next__()

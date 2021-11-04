@@ -137,8 +137,8 @@ class SaveOnBestTrainingRewardCallback(BaseCallback):
                     saver = tf.train.Saver()
                     saver.save(self.model.sess, model_path_to_save)
 
-                print('test training traces')
-                for worker_id in range(self.aurora.comm.Get_size()):
+                # print('test training traces')
+                # for worker_id in range(self.aurora.comm.Get_size()):
                     # for trace_file in glob.glob(os.path.join(
                     #     "/tank/zxxia/PCC-RL/results_0928/verify_alp_continuity_test/bw_delay2/seed_42/train_traces/worker_{}_iteration_{}/trace*.json".format(
                     #     worker_id, int(self.n_calls / self.check_freq)-1))):
@@ -162,29 +162,29 @@ class SaveOnBestTrainingRewardCallback(BaseCallback):
                     #     # print(int(self.num_timesteps / self.check_freq), log_dir)
                     #     self.aurora._test(train_trace, log_dir)
 
-                    for trace_file in glob.glob(os.path.join(
-                        "/tank/zxxia/PCC-RL/results_0928/verify_alp_continuity_test/bw_delay2/seed_42/ref_traces/worker_{}_iteration_{}/trace*.json".format(
-                        worker_id, int(self.n_calls / self.check_freq)-1))):
-                        # "/tank/zxxia/PCC-RL/results_0928/verify_alp_continuity_test/bw_delay/seed_42/train_traces/worker_{}_iteration_{}/trace*.json".format(
-                        train_trace = Trace.load_from_file(trace_file)
-                        log_dir = os.path.join(
-                            os.path.splitext(trace_file)[0],
-                            'step_{}'.format(int(self.num_timesteps)))
-                        os.makedirs(log_dir, exist_ok=True)
-                        # print(log_dir, self.n_calls/ self.check_freq, self.num_timesteps/self.check_freq)
-                        self.aurora._test(train_trace, log_dir)
+                    # for trace_file in glob.glob(os.path.join(
+                    #     "/tank/zxxia/PCC-RL/results_0928/verify_alp_continuity_test/bw_delay2/seed_42/ref_traces/worker_{}_iteration_{}/trace*.json".format(
+                    #     worker_id, int(self.n_calls / self.check_freq)-1))):
+                    #     # "/tank/zxxia/PCC-RL/results_0928/verify_alp_continuity_test/bw_delay/seed_42/train_traces/worker_{}_iteration_{}/trace*.json".format(
+                    #     train_trace = Trace.load_from_file(trace_file)
+                    #     log_dir = os.path.join(
+                    #         os.path.splitext(trace_file)[0],
+                    #         'step_{}'.format(int(self.num_timesteps)))
+                    #     os.makedirs(log_dir, exist_ok=True)
+                    #     # print(log_dir, self.n_calls/ self.check_freq, self.num_timesteps/self.check_freq)
+                    #     self.aurora._test(train_trace, log_dir)
 
-                    for trace_file in glob.glob(os.path.join(
-                        "/tank/zxxia/PCC-RL/results_0928/verify_alp_continuity_test/bw_delay2/seed_42/ref_traces/worker_{}_iteration_{}/trace*.json".format(
-                        worker_id, int(self.n_calls / self.check_freq)-2))):
-                        # "/tank/zxxia/PCC-RL/results_0928/verify_alp_continuity_test/bw_delay/seed_42/train_traces/worker_{}_iteration_{}/trace*.json".format(
-                        train_trace = Trace.load_from_file(trace_file)
-                        log_dir = os.path.join(
-                            os.path.splitext(trace_file)[0],
-                            'step_{}'.format(int(self.num_timesteps)))
-                        os.makedirs(log_dir, exist_ok=True)
-                        # print(int(self.num_timesteps / self.check_freq), log_dir)
-                        self.aurora._test(train_trace, log_dir)
+                    # for trace_file in glob.glob(os.path.join(
+                    #     "/tank/zxxia/PCC-RL/results_0928/verify_alp_continuity_test/bw_delay2/seed_42/ref_traces/worker_{}_iteration_{}/trace*.json".format(
+                    #     worker_id, int(self.n_calls / self.check_freq)-2))):
+                    #     # "/tank/zxxia/PCC-RL/results_0928/verify_alp_continuity_test/bw_delay/seed_42/train_traces/worker_{}_iteration_{}/trace*.json".format(
+                    #     train_trace = Trace.load_from_file(trace_file)
+                    #     log_dir = os.path.join(
+                    #         os.path.splitext(trace_file)[0],
+                    #         'step_{}'.format(int(self.num_timesteps)))
+                    #     os.makedirs(log_dir, exist_ok=True)
+                    #     # print(int(self.num_timesteps / self.check_freq), log_dir)
+                    #     self.aurora._test(train_trace, log_dir)
                 if not self.validation_flag:
                     return True
                 avg_tr_bw = []
@@ -324,8 +324,9 @@ class Aurora():
         # generate validation traces
         validation_traces = generate_traces(
             config_file, 20, duration=30)
-        env = gym.make('PccNs-v0', traces=training_traces,
-                       train_flag=True, delta_scale=self.delta_scale, config_file=config_file)
+        env = gym.make('PccNs-v0', traces=training_traces, train_flag=True,
+                       delta_scale=self.delta_scale, config_file=config_file,
+                       save_dir=self.log_dir)
         env.seed(self.seed)
         # env = Monitor(env, self.log_dir)
         self.model.set_env(env)

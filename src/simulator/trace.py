@@ -305,13 +305,7 @@ def generate_trace(duration_range: Tuple[float, float],
 
 
 def generate_traces(config_file: str, tot_trace_cnt: int, duration: int):
-    config = read_json_file(config_file)
     traces = []
-    weight_sum = 0
-    for env_config in config:
-        weight_sum += env_config['weight']
-    assert round(weight_sum, 1) == 1.0
-
     for _ in range(tot_trace_cnt):
         trace = generate_trace_from_config_file(config_file, duration)
         traces.append(trace)

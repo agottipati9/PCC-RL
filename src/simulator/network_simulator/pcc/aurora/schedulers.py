@@ -1,3 +1,4 @@
+import random
 from typing import List
 
 import numpy as np
@@ -9,7 +10,7 @@ from simulator.trace import Trace, generate_traces
 
 
 class Scheduler:
-    def get_trace(self):
+    def get_trace(self) -> Trace:
         raise NotImplementedError
 
 
@@ -31,7 +32,7 @@ class UDRTrainScheduler(Scheduler):
 
     def get_trace(self):
         if self.traces and np.random.uniform(0, 1) < self.percent:
-            return np.random.choice(self.traces)
+            return random.choice(self.traces)
         elif self.config_file:
             return generate_traces(self.config_file, 1, duration=30)[0]
         else:

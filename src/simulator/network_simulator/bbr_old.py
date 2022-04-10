@@ -254,6 +254,8 @@ class BBRSender(Sender):
             self.round_start = False
 
     def update_btlbw(self, pkt: BBRPacket):
+        if self.rs.delivery_rate == 0.0:
+            return
         self.update_round(pkt)
         if self.rs.delivery_rate >= self.btlbw or not self.rs.is_app_limited:
             self.btlbw_filter.update(self.rs.delivery_rate, self.round_count)

@@ -2,7 +2,7 @@ from typing import List, TypeVar, Tuple
 
 from common import sender_obs
 from simulator.network_simulator import network, packet
-from simulator.network_simulator.constants import BITS_PER_BYTE, BYTES_PER_PACKET
+from simulator.network_simulator.constants import BITS_PER_BYTE, BYTES_PER_PACKET, EVENT_TYPE_SEND
 
 
 class Sender:
@@ -147,6 +147,9 @@ class Sender:
             queue_delay_samples=self.queue_delay_samples,
             packet_size=BYTES_PER_PACKET
         )
+
+    def stop_run(self, pkt: "packet.Packet", end_time: float)->bool:
+        return self.got_data and pkt.ts >= end_time and pkt.event_type == EVENT_TYPE_SEND
 
     def reset_obs(self):
         self.sent = 0

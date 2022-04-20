@@ -20,8 +20,9 @@ def extract_cc_name(log_path):
 
 
 class Flow():
-    def __init__(self, log_path, ms_per_bin=500, end_time=None):
-        self.tunnel_graph = TunnelGraph(log_path, ms_per_bin=ms_per_bin, end_time=end_time)
+    def __init__(self, log_path, ms_per_bin=500, start_time=None, end_time=None):
+        self.tunnel_graph = TunnelGraph(log_path, ms_per_bin=ms_per_bin,
+                                        start_time=start_time, end_time=end_time)
         self.tunnel_graph.parse_tunnel_log()
         self.cc = extract_cc_name(log_path)
         self.ms_per_bin = ms_per_bin

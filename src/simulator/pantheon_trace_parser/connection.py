@@ -1,5 +1,5 @@
 import os
-from common.utils import read_json_file, write_json_file
+from common.utils import read_json_file, write_json_file, pcc_aurora_reward
 
 import numpy as np
 
@@ -9,7 +9,8 @@ from simulator.pantheon_trace_parser.flow import Flow, extract_cc_name
 class Connection:
     """Connection contains an uplink flow and a downlink flow."""
 
-    def __init__(self, trace_file, calibrate_timestamps=False, use_cache=True, end_time=None):
+    def __init__(self, trace_file, calibrate_timestamps=False, use_cache=True,
+                 start_time=None, end_time=None):
         self.use_cache = use_cache
         trace_file_basename = os.path.basename(trace_file)
         trace_file_dirname = os.path.dirname(trace_file)
@@ -17,11 +18,11 @@ class Connection:
         summary_path = os.path.join(str(trace_file_dirname), '{}_conn_summary.json'.format(cc))
         self.cache = {}
         if not self.use_cache or (self.use_cache and not os.path.exists(summary_path)):
-            self.datalink = Flow(trace_file, end_time=end_time)
+            self.datalink = Flow(trace_file, start_time=start_time, end_time=end_time)
             self.acklink = Flow(os.path.join(
                 str(trace_file_dirname),
                 str(trace_file_basename.replace("datalink", "acklink"))),
-                end_time=end_time)
+                start_time=start_time, end_time=end_time)
             if calibrate_timestamps:
                 self.t_offset = min(self.datalink.throughput_timestamps[0],
                                     self.datalink.sending_rate_timestamps[0])

@@ -292,7 +292,7 @@ class Genet:
                     config_file=self.cur_config_file,
                     real_trace_prob=self.real_trace_prob)
             if self.model_path:
-                " --pretrained-model-path {}".format(self.model_path)
+                cmd += " --pretrained-model-path {}".format(self.model_path)
             if self.validation:
                 cmd += " --validation"
             if self.train_trace_file:

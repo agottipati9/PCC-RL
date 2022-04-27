@@ -388,7 +388,7 @@ class BBRSender(Sender):
     def check_probe_rtt(self):
         if self.state != BBRMode.BBR_PROBE_RTT and self.rtprop_expired and not self.idle_restart:
             self.enter_probe_rtt()
-            self.save_cwnd()
+            self.prior_cwnd = self.save_cwnd()
             self.probe_rtt_done_stamp = 0
         if self.state == BBRMode.BBR_PROBE_RTT:
             self.handle_probe_rtt()

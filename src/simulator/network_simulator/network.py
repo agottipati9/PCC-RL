@@ -6,6 +6,7 @@ from simulator.network_simulator.constants import BITS_PER_BYTE, BYTES_PER_PACKE
 from simulator.network_simulator.packet import Packet
 from simulator.network_simulator.link import Link
 from simulator.network_simulator.sender import SenderType
+from simulator.network_simulator.grouper import Grouper
 
 USE_LATENCY_NOISE = False
 # USE_LATENCY_NOISE = True
@@ -20,6 +21,7 @@ class Network:
 
     def __init__(self, senders: List[SenderType], links: List[Link],
                  record_pkt_log: bool = False):
+        self.grouper = Grouper(self, 10)
         self.q = []
         self.cur_time = 0.0
         self.senders = senders
@@ -78,7 +80,13 @@ class Network:
             pkt = heapq.heappop(self.q)
 
             self.cur_time = pkt.ts
+            self.grouper.update(self.cur_time)
             push_new_event = False
+
+            if len(self.q) == 0:
+                self.add_packet(Packet(self.get_cur_time() + 0.001, pkt.sender, 0, 0))
+            if pkt.pkt_size == 0:
+                continue
             # debug_print("Got %d event %s, to link %d, latency %f at time %f, "
             #             "next_hop %d, dropped %s, event_q length %f, "
             #             "sender rate %f, duration: %f, queue_size: %f, "
@@ -141,7 +149,8 @@ class Network:
                     # TODO: add delay noise of acklink
                     pkt.add_propagation_delay(link_prop_latency)
                     pkt.next_hop += 1
-                    push_new_event = True
+                    push_new_event = self.grouper.group(pkt)
+                    # push_new_event = True
             elif pkt.event_type == EVENT_TYPE_SEND:  # in datalink
                 if pkt.next_hop == 0:
                     if sender.on_packet_sent(pkt):

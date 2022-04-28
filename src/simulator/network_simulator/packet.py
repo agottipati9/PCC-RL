@@ -7,7 +7,7 @@ from simulator.network_simulator import sender
 class Packet:
     """Packet event in simulator."""
 
-    def __init__(self, ts: float, sender: "sender.Sender", pkt_id: int):
+    def __init__(self, ts: float, sender: "sender.Sender", pkt_id: int, pkt_size: int = BYTES_PER_PACKET):
         self.ts = ts
         self.sent_time = ts
         self.dropped = False
@@ -18,7 +18,7 @@ class Packet:
         self.queue_delay = 0.0
         self.propagation_delay = 0.0
         self.transmission_delay = 0.0
-        self.pkt_size = BYTES_PER_PACKET # bytes
+        self.pkt_size = pkt_size # bytes
         self.real_ts = time.time()
 
     def drop(self) -> None:
@@ -42,7 +42,7 @@ class Packet:
 
     @property
     def cur_latency(self) -> float:
-        """Return Current latency experienced.
+        """Return current latency experienced.
 
         Latency = propagation_delay + queue_delay
         """
@@ -54,6 +54,8 @@ class Packet:
 
     # override the comparison operator
     def __lt__(self, nxt):
+        if self.ts == nxt.ts:
+            return self.pkt_id < nxt.pkt_id
         return self.ts < nxt.ts
 
     def debug_print(self):

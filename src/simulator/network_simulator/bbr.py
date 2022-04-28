@@ -340,7 +340,6 @@ class BBRSender(Sender):
         self.restore_cwnd()
         self.in_fast_recovery_mode = False
 
-
     def enter_drain(self):
         self.state = BBRMode.BBR_DRAIN
         self.pacing_gain = 1 / BBR_HIGH_GAIN  # pace slowly
@@ -554,21 +553,23 @@ class BBRSender(Sender):
         if first_pkt:
             self.next_send_time = 0
         elif on_ack:
-            if self.get_cur_time() < self.next_send_time:
-                return
-            return
-            # self.next_send_time = self.get_cur_time()
+            self.next_send_time = self.get_cur_time()
         else:
             self.next_send_time = self.get_cur_time() + BYTES_PER_PACKET / self.pacing_rate # (5 * 1e6 / 8)#
         next_pkt = BBRPacket(self.next_send_time, self, 0)
         self.net.add_packet(next_pkt)
 
-    def on_packet_sent(self, pkt: BBRPacket) -> None:
+    def on_packet_sent(self, pkt: BBRPacket) -> bool:
         # if self.get_cur_time() >= self.next_send_time:
         # packet = nextPacketToSend() # assume always a packet to send from app
+        if not self.can_send_packet():
+            self.limited_by_cwnd = True
+            return False
+        if self.get_cur_time() < self.next_send_time:
+            return False
         if not pkt:
             self.app_limited_until = self.bytes_in_flight
-            return
+            return False
         self.send_packet(pkt)
         # ship(packet) # no need to do this in the simulator.
         super().on_packet_sent(pkt)
@@ -578,6 +579,8 @@ class BBRSender(Sender):
         #     ipdb.set_trace()
         # timerCallbackAt(send, nextSendTime)
         # TODO: potential bug here if previous call return at if inflight < cwnd
+        self.schedule_send()
+        return True
 
     def on_packet_acked(self, pkt: BBRPacket) -> None:
         if not self.net:
@@ -592,12 +595,24 @@ class BBRSender(Sender):
             self.packet_conservation = False
             self.on_exit_fast_recovery()
 
+        # if self.limited_by_cwnd:
+        if self.next_send_time < self.get_cur_time():
+            # import pdb
+            # pdb.set_trace()
+            self.schedule_send(on_ack=True)
+            self.limited_by_cwnd = False
+
     def on_packet_lost(self, pkt: BBRPacket) -> None:
         if not self.net:
             raise RuntimeError("network is not registered in sender.")
         super().on_packet_lost(pkt)
         self.rs.losses += 1
         self.on_enter_fast_recovery(pkt)
+
+        # if self.limited_by_cwnd:
+        if self.next_send_time < self.get_cur_time():
+            self.schedule_send(on_ack=True)
+            self.limited_by_cwnd = False
 
     def reset(self):
         super().reset()
@@ -617,6 +632,8 @@ class BBRSender(Sender):
 
         self.in_fast_recovery_mode = False
         self.exit_fast_recovery_ts = -1
+
+        self.limited_by_cwnd = False
 
         self.init()
 

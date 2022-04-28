@@ -26,8 +26,10 @@ class AuroraSender(Sender):
         self.cwnd = 0
         self.prev_rtt_samples = []
 
-    def on_packet_sent(self, pkt: "packet.Packet") -> None:
-        return super().on_packet_sent(pkt)
+    def on_packet_sent(self, pkt: "packet.Packet") -> bool:
+        super().on_packet_sent(pkt)
+        self.schedule_send()
+        return True
 
     def on_packet_acked(self, pkt: "packet.Packet") -> None:
         super().on_packet_acked(pkt)

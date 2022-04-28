@@ -67,7 +67,7 @@ class Sender:
     def register_network(self, net: "network.Network") -> None:
         self.net = net
 
-    def on_packet_sent(self, pkt: "packet.Packet") -> None:
+    def on_packet_sent(self, pkt: "packet.Packet") -> bool:
         pkt.pkt_id = self.event_count
         self.event_count += 1
         self.sent += 1
@@ -79,6 +79,7 @@ class Sender:
 
         bin_id = int((pkt.ts - self.first_sent_ts) * 1000 / self.bin_size)
         self.bin_bytes_sent[bin_id] = self.bin_bytes_sent.get(bin_id, 0) + pkt.pkt_size
+        return True
 
     def on_packet_acked(self, pkt: "packet.Packet") -> None:
         self.acked += 1

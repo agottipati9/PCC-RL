@@ -7,7 +7,7 @@ from simulator.network_simulator import sender
 class Packet:
     """Packet event in simulator."""
 
-    def __init__(self, ts: float, sender: "sender.Sender", pkt_id: int):
+    def __init__(self, ts: float, sender: "sender.Sender", pkt_id: int, pkt_size: int = BYTES_PER_PACKET):
         self.ts = ts
         self.sent_time = ts
         self.dropped = False
@@ -18,8 +18,9 @@ class Packet:
         self.queue_delay = 0.0
         self.propagation_delay = 0.0
         self.transmission_delay = 0.0
-        self.pkt_size = BYTES_PER_PACKET # bytes
+        self.pkt_size = pkt_size # bytes
         self.real_ts = time.time()
+        self.noise_delay = 0.0
 
     def drop(self) -> None:
         """Mark packet as dropped."""
@@ -28,7 +29,7 @@ class Packet:
     def add_transmission_delay(self, extra_delay: float) -> None:
         """Add to the transmission delay and add to the timestamp too."""
         self.transmission_delay += extra_delay
-        self.ts += extra_delay
+        # self.ts += extra_delay
 
     def add_propagation_delay(self, extra_delay: float) -> None:
         """Add to the propagation delay and add to the timestamp too."""
@@ -40,13 +41,19 @@ class Packet:
         self.queue_delay += extra_delay
         self.ts += extra_delay
 
+    def add_delay_noise(self, extra_delay: float):
+        self.noise_delay += extra_delay
+        self.ts += extra_delay
+
     @property
     def cur_latency(self) -> float:
-        """Return Current latency experienced.
+        """Return current latency experienced.
 
         Latency = propagation_delay + queue_delay
         """
-        return self.queue_delay + self.propagation_delay # + self.transmission_delay
+        assert round(self.queue_delay + self.propagation_delay + self.noise_delay, 6) == round(self.ts - self.sent_time, 6), "{}, {}".format(
+            self.queue_delay + self.propagation_delay + self.noise_delay, self.ts - self.sent_time)
+        return self.queue_delay + self.propagation_delay + self.noise_delay  # + self.transmission_delay
 
     @property
     def rtt(self) -> float:
@@ -54,6 +61,8 @@ class Packet:
 
     # override the comparison operator
     def __lt__(self, nxt):
+        if self.ts == nxt.ts:
+            return self.pkt_id < nxt.pkt_id
         return self.ts < nxt.ts
 
     def debug_print(self):

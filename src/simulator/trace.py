@@ -452,6 +452,7 @@ def generate_bw_delay_series(T_s: float, duration: float,
     timestamps.append(round(duration, round_digit))
     bandwidths.append(bw_val)
     delays.append(delay_val)
+    # delays = list(np.random.uniform(min_delay, max_delay, len(delays)) + np.abs(np.random.normal(0, 20, len(delays))))
 
     return timestamps, bandwidths, delays
 

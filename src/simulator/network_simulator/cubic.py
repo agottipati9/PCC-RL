@@ -33,8 +33,10 @@ class TCPCubicSender(Sender):
 
         self.cubic_reset()
 
-    def on_packet_sent(self, pkt: Packet):
-        return super().on_packet_sent(pkt)
+    def on_packet_sent(self, pkt: Packet) -> bool:
+        if self.can_send_packet():
+            return super().on_packet_sent(pkt)
+        return False
 
     def on_packet_acked(self, pkt: Packet):
         if not self.net:

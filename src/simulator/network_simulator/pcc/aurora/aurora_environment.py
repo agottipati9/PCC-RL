@@ -1,4 +1,6 @@
 from typing import List
+import warnings
+warnings.simplefilter(action='ignore', category=UserWarning)
 
 import gym
 import numpy as np

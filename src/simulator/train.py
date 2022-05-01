@@ -53,6 +53,12 @@ def parse_args():
         action="store_true",
         help="specify to enable validation.",
     )
+    parser.add_argument(
+        "--val-freq",
+        type=int,
+        default=7200,
+        help="specify to enable validation.",
+    )
     subparsers = parser.add_subparsers(dest="curriculum", help="CL parsers.")
     udr_parser = subparsers.add_parser("udr", help="udr")
     udr_parser.add_argument(
@@ -128,7 +134,7 @@ def main():
     aurora = Aurora(
         args.seed + COMM_WORLD.Get_rank() * 100,
         args.save_dir,
-        int(7200 / nprocs),
+        int(args.val_freq / nprocs),
         args.pretrained_model_path,
         tensorboard_log=args.tensorboard_log,
     )

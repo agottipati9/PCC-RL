@@ -9,10 +9,13 @@ from gym.envs.registration import register
 from gym.utils import seeding
 
 from common import sender_obs
-from simulator.network_simulator.constants import BYTES_PER_PACKET
+from simulator.network_simulator.constants import BYTES_PER_PACKET, AURORA_ROUND
 from simulator.network_simulator.link import Link
 from simulator.network_simulator.network import Network
-from simulator.network_simulator.pcc.aurora.aurora_sender import AuroraSender
+if AURORA_ROUND:
+    from simulator.network_simulator.pcc.aurora.aurora_sender_round import AuroraSender
+else:
+    from simulator.network_simulator.pcc.aurora.aurora_sender import AuroraSender
 from simulator.network_simulator.pcc.aurora.schedulers import Scheduler
 
 

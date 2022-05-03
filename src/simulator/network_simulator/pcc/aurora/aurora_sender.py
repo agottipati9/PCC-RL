@@ -19,6 +19,7 @@ class AuroraSender(Sender):
         self.pacing_rate = pacing_rate
         self.history_len = history_len
         self.features = features
+        sender_obs._conn_min_latencies = {}
         self.history = sender_obs.SenderHistory(self.history_len,
                                                 self.features, self.sender_id)
         self.trace = trace
@@ -149,6 +150,7 @@ class AuroraSender(Sender):
         self.bytes_in_flight = 0
         self.min_latency = None
         self.reset_obs()
+        sender_obs._conn_min_latencies = {}
         self.history = sender_obs.SenderHistory(self.history_len,
                                                 self.features, self.sender_id)
         self.estRTT = 1000000 / 1e6  # SynInterval in emulation

@@ -5,7 +5,7 @@ import numpy as np
 from common import sender_obs
 from common.utils import pcc_aurora_reward
 from simulator.network_simulator.constants import (
-    BITS_PER_BYTE, BYTES_PER_PACKET, MAX_RATE, MI_RTT_PROPORTION, MIN_RATE, TCP_INIT_CWND)
+    BITS_PER_BYTE, BYTES_PER_PACKET, MAX_RATE, MI_RTT_PROPORTION, MIN_RATE, TCP_INIT_CWND, MIN_CWND)
 from simulator.network_simulator.sender import Sender
 from simulator.network_simulator import packet
 from simulator.trace import Trace
@@ -56,6 +56,9 @@ class AuroraBtlBwFilter:
             return 0
         return max(self.cache.values())
 
+    def reset(self):
+        self.cache = {}
+
 
 class AuroraPacket(packet.Packet):
 
@@ -68,11 +71,11 @@ class AuroraPacket(packet.Packet):
     def debug_print(self):
         print("Event {}: ts={}, type={}, dropped={}, cur_latency: {}, "
               "delivered={}, delivered_time={}, first_sent_time={}, "
-              "pkt_in_flight: {}".format(
+              "pkt_in_flight: {}, pacing_rate={}".format(
                   self.pkt_id, self.ts, self.event_type, self.dropped,
                   self.cur_latency, self.delivered, self.delivered_time,
                   self.first_sent_time,
-                  self.sender.bytes_in_flight / BYTES_PER_PACKET))
+                  self.sender.bytes_in_flight / BYTES_PER_PACKET, self.sender.pacing_rate / BYTES_PER_PACKET))
 
 
 class AuroraSender(Sender):
@@ -85,11 +88,13 @@ class AuroraSender(Sender):
         self.pacing_rate = pacing_rate
         self.history_len = history_len
         self.features = features
+        sender_obs._conn_min_latencies = {}
         self.history = sender_obs.SenderHistory(self.history_len,
                                                 self.features, self.sender_id)
         self.trace = trace
         self.got_data = False
         self.cwnd = TCP_INIT_CWND
+        self.min_latency = None
         self.prev_rtt_samples = []
         self.round_start = False
         self.round_count = 0
@@ -188,6 +193,7 @@ class AuroraSender(Sender):
         return False
 
     def on_packet_acked(self, pkt: AuroraPacket) -> None:
+        self.min_latency = min(self.min_latency, pkt.rtt) if self.min_latency else pkt.rtt
         self.delivered += pkt.pkt_size
         # self.conn_state.delivered_time = self.get_cur_time()
         super().on_packet_acked(pkt)
@@ -210,9 +216,9 @@ class AuroraSender(Sender):
 
     def apply_rate_delta(self, delta):
         if delta >= 0.0:
-            self.set_rate(self.pacing_rate * (1.0 + delta))
+            self.set_rate(self.pacing_rate * (1.0 + float(delta)))
         else:
-            self.set_rate(self.pacing_rate / (1.0 - delta))
+            self.set_rate(self.pacing_rate / (1.0 - float(delta)))
 
     def set_rate(self, new_rate):
         self.pacing_rate = new_rate
@@ -279,7 +285,7 @@ class AuroraSender(Sender):
     def schedule_send(self, first_pkt: bool = False, on_ack: bool = False):
         assert self.net, "network is not registered in sender."
         if first_pkt:
-            next_send_time = 0
+            next_send_time = 0.0
         else:
             next_send_time = self.get_cur_time() + BYTES_PER_PACKET / self.pacing_rate
         next_pkt = AuroraPacket(next_send_time, self, 0)
@@ -306,8 +312,7 @@ class AuroraSender(Sender):
         self.btlbw_filter.update(throughput, self.round_count)
         min_lat = sender_mi.get("conn min latency")
         btlbw = self.btlbw_filter.get_btlbw()
-        self.cwnd = 2 * round(btlbw * min_lat / BITS_PER_BYTE / BYTES_PER_PACKET)
-        print(self.cwnd)
+        self.cwnd = max(2 * round(btlbw * self.min_latency / BITS_PER_BYTE / BYTES_PER_PACKET), MIN_CWND * 2)
         return reward, self.mi_duration
 
     def reset_obs(self):
@@ -326,6 +331,7 @@ class AuroraSender(Sender):
         self.bytes_in_flight = 0
         self.min_latency = None
         self.reset_obs()
+        sender_obs._conn_min_latencies = {}
         self.history = sender_obs.SenderHistory(self.history_len,
                                                 self.features, self.sender_id)
         self.estRTT = 1000000 / 1e6  # SynInterval in emulation
@@ -338,3 +344,4 @@ class AuroraSender(Sender):
         self.round_start = False
         self.round_count = 0
         self.cwnd = TCP_INIT_CWND
+        self.btlbw_filter.reset()

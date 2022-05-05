@@ -179,6 +179,7 @@ class BBRSender(Sender):
 
         self.in_fast_recovery_mode = False
         self.exit_fast_recovery_ts = -1
+        self.limited_by_cwnd = False
 
         self.init()
         # self.bbr_log = []
@@ -578,7 +579,6 @@ class BBRSender(Sender):
         # else:
         #     ipdb.set_trace()
         # timerCallbackAt(send, nextSendTime)
-        # TODO: potential bug here if previous call return at if inflight < cwnd
         self.schedule_send()
         return True
 
@@ -595,10 +595,7 @@ class BBRSender(Sender):
             self.packet_conservation = False
             self.on_exit_fast_recovery()
 
-        # if self.limited_by_cwnd:
-        if self.next_send_time < self.get_cur_time():
-            # import pdb
-            # pdb.set_trace()
+        if self.next_send_time < self.get_cur_time() or (self.next_send_time == self.get_cur_time() and self.limited_by_cwnd):
             self.schedule_send(on_ack=True)
             self.limited_by_cwnd = False
 
@@ -609,8 +606,7 @@ class BBRSender(Sender):
         self.rs.losses += 1
         self.on_enter_fast_recovery(pkt)
 
-        # if self.limited_by_cwnd:
-        if self.next_send_time < self.get_cur_time():
+        if self.next_send_time < self.get_cur_time() or (self.next_send_time == self.get_cur_time() and self.limited_by_cwnd):
             self.schedule_send(on_ack=True)
             self.limited_by_cwnd = False
 

@@ -147,6 +147,11 @@ class Network:
                     # link_latency *= random.uniform(1.0, MAX_LATENCY_NOISE)
                     # TODO: add delay noise of acklink
                     pkt.add_propagation_delay(link_prop_latency)
+                    #
+                    # rand = random.uniform(0, 1)
+                    # if rand > 0.75:
+                    #     noise = abs(random.uniform(0.0, 200) / 1000)
+                    #     pkt.add_propagation_delay(noise)
                     pkt.next_hop += 1
                     if self.grouper:
                         push_new_event = self.grouper.group(pkt)
@@ -172,22 +177,23 @@ class Network:
                 if pkt.next_hop == sender.dest:
                     pkt.event_type = EVENT_TYPE_ACK
 
-                link_prop_latency, q_delay = self.links[pkt.next_hop].get_cur_latency(
-                    self.cur_time)
+                # print(pkt.next_hop, pkt.pkt_id, q_delay, self.links[pkt.next_hop].pkt_in_queue)
                 # if USE_LATENCY_NOISE:
                 # link_latency *= random.uniform(1.0, MAX_LATENCY_NOISE)
                 # link_latency += self.env.current_trace.get_delay_noise(
                 #     self.cur_time, self.links[pkt.next_hop].get_bandwidth(self.cur_time)) / 1000
                 # link_latency *= self.env.current_trace.get_delay_noise_replay(self.cur_time)
-                rand = random.uniform(0, 1)
-                pkt.add_propagation_delay(link_prop_latency)
-                if rand > 0.9:
-                    noise = random.uniform(0.0, self.links[pkt.next_hop].trace.delay_noise) / 1000
-                    pkt.add_propagation_delay(noise)
-                pkt.add_queue_delay(q_delay)
+                # rand = random.uniform(0, 1)
+                # if rand > 0.9:
+                #     noise = random.uniform(0.0, self.links[pkt.next_hop].trace.delay_noise) / 1000
+                #     pkt.add_propagation_delay(noise)
                 # pkt.add_transmission_delay(1 / self.links[0].get_bandwidth(self.cur_time))
                 if not self.links[pkt.next_hop].packet_enters_link(self.cur_time):
                     pkt.drop()
+                link_prop_latency, q_delay = self.links[pkt.next_hop].get_cur_latency(
+                    self.cur_time)
+                pkt.add_propagation_delay(link_prop_latency)
+                pkt.add_queue_delay(q_delay)
                 self.extra_delays.append(
                     1 / self.links[pkt.next_hop].get_bandwidth(self.cur_time))
                 pkt.next_hop += 1

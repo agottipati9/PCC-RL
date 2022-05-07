@@ -34,9 +34,9 @@ class TCPCubicSender(Sender):
         self.cubic_reset()
 
     def on_packet_sent(self, pkt: Packet) -> bool:
-        if self.can_send_packet():
-            return super().on_packet_sent(pkt)
-        return False
+        # if self.can_send_packet():
+        return super().on_packet_sent(pkt)
+        # return False
 
     def on_packet_acked(self, pkt: Packet):
         if not self.net:
@@ -60,13 +60,13 @@ class TCPCubicSender(Sender):
                 else:
                     self.cwnd_cnt += 1
         # add packet into network
-        self.send()
+        self.schedule_send()
 
     def on_packet_lost(self, pkt: Packet) -> None:
         if not self.net:
             raise RuntimeError("network is not registered in sender.")
         super().on_packet_lost(pkt)
-        rtt = pkt.cur_latency
+        # rtt = pkt.cur_latency
         # print('packet_loss,', self.net.get_cur_time(), rtt, self.pkt_loss_wait_time)
         if self.get_cur_time() > self.pkt_loss_wait_time:
             # : #
@@ -93,7 +93,7 @@ class TCPCubicSender(Sender):
             #     self.timeout_cnt, self.pkt_loss_wait_time), file=sys.stderr,)
 
         # add packet into network
-        self.send()
+        self.schedule_send()
 
     def cubic_reset(self):
         self.W_last_max = 0
@@ -152,7 +152,7 @@ class TCPCubicSender(Sender):
         self.ssthresh = max(self.cwnd, MIN_CWND)
         # self.cubic_reset()
         self.pkt_loss_wait_time = self.get_cur_time() + self.srtt
-        self.send()
+        self.schedule_send()
         return
         # # if self.pkt_loss_wait_time <= 0:
         #     # self.timeout_cnt += 1
@@ -179,22 +179,14 @@ class TCPCubicSender(Sender):
                 cnt = max_cnt
         return cnt
 
-    def send(self):
-        if not self.net:
-            raise RuntimeError("network is not registered in sender.")
-        for _ in range(int(self.cwnd - self.bytes_in_flight / BYTES_PER_PACKET)):
-            pkt = Packet(self.get_cur_time(), self, 0)
-            self.net.add_packet(pkt)
-
     def can_send_packet(self) -> bool:
         return int(self.bytes_in_flight) / BYTES_PER_PACKET < self.cwnd
 
     def schedule_send(self, first_pkt=False, on_ack=False):
         assert self.net, "network is not registered in sender."
-        if first_pkt:
-            for _ in range(self.cwnd):
-                pkt = Packet(self.get_cur_time(), self, 0)
-                self.net.add_packet(pkt)
+        for _ in range(int(self.cwnd - self.bytes_in_flight / BYTES_PER_PACKET)):
+            pkt = Packet(self.get_cur_time(), self, 0)
+            self.net.add_packet(pkt)
 
 
 class Cubic:

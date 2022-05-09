@@ -340,7 +340,6 @@ class BBRSender(Sender):
         self.restore_cwnd()
         self.in_fast_recovery_mode = False
 
-
     def enter_drain(self):
         self.state = BBRMode.BBR_DRAIN
         self.pacing_gain = 1 / BBR_HIGH_GAIN  # pace slowly
@@ -567,12 +566,15 @@ class BBRSender(Sender):
         next_pkt = BBRPacket(self.next_send_time, self, 0)
         self.net.add_packet(next_pkt)
 
-    def on_packet_sent(self, pkt: BBRPacket) -> None:
+    def on_packet_sent(self, pkt: BBRPacket) -> bool:
         # if self.get_cur_time() >= self.next_send_time:
         # packet = nextPacketToSend() # assume always a packet to send from app
+        if not self.can_send_packet():
+            self.schedule_send()
+            return False
         if not pkt:
             self.app_limited_until = self.bytes_in_flight
-            return
+            return False
         self.send_packet(pkt)
         # ship(packet) # no need to do this in the simulator.
         super().on_packet_sent(pkt)
@@ -582,6 +584,8 @@ class BBRSender(Sender):
         #     ipdb.set_trace()
         # timerCallbackAt(send, nextSendTime)
         # TODO: potential bug here if previous call return at if inflight < cwnd
+        self.schedule_send()
+        return True
 
     def on_packet_acked(self, pkt: BBRPacket) -> None:
         if not self.net:

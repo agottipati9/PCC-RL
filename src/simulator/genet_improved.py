@@ -59,6 +59,10 @@ def parse_args():
                         help="Probability of picking a real trace in training")
     parser.add_argument('--bo-only', action='store_true',
                         help='specify to avoid training.')
+    parser.add_argument('--bo-steps', type=int, default=int(7.2e4),
+                        help='number of steps per BO.')
+    parser.add_argument('--param-select', type=str, choices=('best', 'multi'),
+                        default='best', help='method to select a config.')
 
     return parser.parse_args()
 
@@ -202,6 +206,7 @@ class Genet:
         n_init_pts: number of randomly sampled points in BO.
         n_iter: number of exploitation points in BO.
         model_select: how to pick a model from trained models. latest or best. Default: latest
+        param_select: how to pick a config(s) to add to next training set. multi or best. Default: best
     """
 
     def __init__(self, config_file: str, save_dir: str,
@@ -210,7 +215,8 @@ class Genet:
                  n_init_pts: int = 10, n_iter: int = 5,
                  model_select: str = 'latest',
                  train_trace_file: Union[None, str] = None,
-                 real_trace_prob: float = 0, bo_only: bool = False):
+                 real_trace_prob: float = 0, bo_only: bool = False,
+                 param_select: str = 'best'):
         self.real_trace_prob = real_trace_prob
         self.black_box_function = black_box_function
         self.seed = seed
@@ -243,6 +249,9 @@ class Genet:
         if model_select != 'latest' and model_select != 'best':
             raise ValueError('Wrong way of model_select!')
         self.model_select = model_select
+        if param_select != 'best' and param_select != 'multi':
+            raise ValueError('Wrong way of param_select!')
+        self.param_select = param_select
         self.train_trace_file = train_trace_file
         # my_observer = BasicObserver()
         # self.optimizer.subscribe(
@@ -250,7 +259,7 @@ class Genet:
         #     subscriber=my_observer,
         #     callback=None)
 
-    def train(self, rounds: int):
+    def train(self, rounds: int, bo_steps: int):
         """Genet trains rl_method.
         Args
             rounds: rounds of BO.
@@ -272,9 +281,16 @@ class Genet:
             optimizer.subscribe(Events.OPTIMIZATION_STEP, logger)
             optimizer.maximize(init_points=self.n_init_pts, n_iter=self.n_iter,
                                kappa=20, xi=0.1)
-            best_param = optimizer.max
-            print(best_param)
-            self.rand_ranges.add_ranges([best_param['params']])
+            if self.param_select == 'best':
+                best_param = optimizer.max
+                print(best_param)
+                self.rand_ranges.add_ranges([best_param['params']])
+            elif self.param_select == 'multi':
+                ranges_to_add = [res['params'] for res in optimizer.res if res['target'] > 0]
+                print(len(ranges_to_add))
+                self.rand_ranges.add_ranges(ranges_to_add)
+            else:
+                raise ValueError
             self.cur_config_file = os.path.join(
                 self.save_dir, "bo_"+str(i) + ".json")
             self.rand_ranges.dump(self.cur_config_file)
@@ -288,7 +304,7 @@ class Genet:
                 "--randomization-range-file {config_file} " \
                 "--real-trace-prob {real_trace_prob}".format(
                     nproc=self.nproc, save_dir=training_save_dir, exp_name="",
-                    seed=self.seed, tot_step=int(7.2e4),
+                    seed=self.seed, tot_step=bo_steps,
                     config_file=self.cur_config_file,
                     real_trace_prob=self.real_trace_prob)
             if self.model_path:
@@ -298,7 +314,7 @@ class Genet:
             if self.train_trace_file:
                 cmd += " --train-trace-file {}".format(self.train_trace_file)
             subprocess.run(cmd.split(' '))
-            self.model_path = get_model_from(training_save_dir, 'latest')
+            self.model_path = get_model_from(training_save_dir, self.model_select)
             print(self.model_path)
             assert self.model_path
 
@@ -332,6 +348,9 @@ def black_box_function(bandwidth_lower_bound: float,
         delay_noise_range=(delay_noise, delay_noise)) for _ in range(10)]
     # print("trace generation used {}s".format(time.time() - t_start))
     save_dirs = [os.path.join(save_dir, 'trace_{}'.format(i)) for i in range(10)]
+    for trace, save_dir in zip(traces, save_dirs):
+        os.makedirs(save_dir, exist_ok=True)
+        trace.dump(os.path.join(save_dir, 'trace.json'))
     if not heuristic:
         for trace in traces:
             heuristic_rewards.append(trace.optimal_reward)
@@ -417,8 +436,9 @@ def main():
                   n_init_pts=args.n_init_pts, n_iter=args.n_iter,
                   model_select=args.model_select,
                   train_trace_file=args.train_trace_file,
-                  real_trace_prob=args.real_trace_prob, bo_only=args.bo_only)
-    genet.train(args.bo_rounds)
+                  real_trace_prob=args.real_trace_prob, bo_only=args.bo_only,
+                  param_select=args.param_select)
+    genet.train(args.bo_rounds, args.bo_steps)
 
 
 if __name__ == "__main__":

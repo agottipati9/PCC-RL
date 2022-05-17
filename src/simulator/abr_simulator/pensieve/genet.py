@@ -1,58 +1,37 @@
 import argparse
+import copy
 import subprocess
-# import numpy as np
 import os
+from typing import Callable, Dict, List, Set, Union
+
+import numpy as np
 from bayes_opt import BayesianOptimization
+
 from simulator.abr_simulator.abr_trace import generate_trace
 from simulator.abr_simulator.utils import map_log_to_lin, latest_actor_from, map_to_unnormalize
+from common.utils import (
+    read_json_file, set_seed, write_json_file)
 from simulator.abr_simulator.mpc import RobustMPC
 from simulator.abr_simulator.pensieve.pensieve import Pensieve
-# Default
-TOTAL_EPOCHS = 100000
-BAYESIAN_OPTIMIZER_INTERVAL = 5000
-NUM_BO_UPDATE = int(TOTAL_EPOCHS / BAYESIAN_OPTIMIZER_INTERVAL)
 
-TRAINING_DATA_DIR = "../data/BO_stable_traces/train/"
-VAL_TRACE_DIR = '../data/BO_stable_traces/test/val_FCC/'
+# TRAINING_DATA_DIR = "../data/BO_stable_traces/train/"
+# VAL_TRACE_DIR = '../data/BO_stable_traces/test/val_FCC/'
 RESULTS_DIR = "../BO-results/randomize-param"
 
-# TODO: the param switching is still manual now
 PARAM_TYPE = "Trace"    #  or "Env"
-# CURRENT_PARAM = "MAX_THROUGHPUT"
-
-CURRENT_PARAM = "MIN_THROUGHPUT"
-CURRENT_PARAM_MIN = 0.2
-CURRENT_PARAM_MAX = 5
-
-# CURRENT_PARAM = "BW_FREQ"
-# CURRENT_PARAM_MIN = 2
-# CURRENT_PARAM_MAX = 100
-
-############################################################
-# PARAM_TYPE = "Env"
-
-# CURRENT_PARAM = "LINK_RTT"
-# CURRENT_PARAM_MIN = 20
-# CURRENT_PARAM_MAX = 1000
-
-# CURRENT_PARAM = "BUFFER_THRES"
-# CURRENT_PARAM_MIN = 2
-# CURRENT_PARAM_MAX = 100
-#
-# CURRENT_PARAM = "CHUNK_LEN"
-# CURRENT_PARAM_MIN = 1
-# CURRENT_PARAM_MAX = 10
 
 def parse_args():
     """Parse arguments from the command line."""
     parser = argparse.ArgumentParser("BO training in simulator.")
     parser.add_argument('--save-dir', type=str, required=True,
                         help="directory to save testing and intermediate results.")
-    parser.add_argument('--model-path', type=str, default=None,
+    parser.add_argument('--model-path', type=str, default="",
+                        help="path to Aurora model to start from.")
+    parser.add_argument('--video-size-file-dir', type=str,
                         help="path to Aurora model to start from.")
     parser.add_argument("--config-file", type=str,
                         help="Path to configuration file.")
-    parser.add_argument("--bo-rounds", type=int, default=30,
+    parser.add_argument("--bo-rounds", type=int, default=20,
                         help="Rounds of BO.")
     parser.add_argument('--seed', type=int, default=42, help='seed')
     parser.add_argument('--heuristic', type=str, default="mpc",
@@ -61,14 +40,88 @@ def parse_args():
 
     return parser.parse_args()
 
+
+class RandomizationRanges:
+    """Manage randomization ranges used in GENET training."""
+
+    def __init__(self, filename: str):
+        self.filename = filename
+        if filename and os.path.exists(filename):
+            self.rand_ranges = read_json_file(filename)
+            assert isinstance(self.rand_ranges, List) and len(
+                self.rand_ranges) >= 1, "rand_ranges object should be a list with length at least 1."
+            weight_sum = 0
+            for rand_range in self.rand_ranges:
+                weight_sum += rand_range['weight']
+            assert weight_sum == 1.0, "Weight sum should be 1."
+            self.parameters = set(self.rand_ranges[0].keys())
+            self.parameters.remove('weight')
+            self.parameters.remove('duration')
+        else:
+            self.rand_ranges = []
+            self.parameters = set()
+
+    def add_ranges(self, range_maps: List[Dict[str, Union[List[float], float]]],
+                   prob: float = 0.3) -> None:
+        """Add a list of ranges into the randomization ranges.
+
+        The sum of weights of newlly added ranges is prob.
+        """
+        for rand_range in self.rand_ranges:
+            rand_range['weight'] *= (1 - prob)
+        if self.rand_ranges:
+            weight = prob / len(range_maps)
+        else:
+            weight = 1 / len(range_maps)
+        for range_map in range_maps:
+            range_map_to_add = dict()
+            for param in self.parameters:
+
+                assert param in range_map, "range_map does not contain '{}'".format(
+                    param)
+                if param == 'max_bw':
+                    range_map_to_add[param] = [np.exp(range_map[param]), np.exp(range_map[param])]
+                else:
+                    range_map_to_add[param] = [range_map[param], range_map[param]]
+            range_map_to_add['weight'] = weight
+            range_map_to_add['duration'] = 330
+            self.rand_ranges.append(range_map_to_add)
+
+    def get_original_range(self) -> Dict[str, List[float]]:
+        start_range = dict()
+        for param_name in self.parameters:
+            start_range[param_name] = self.rand_ranges[0][param_name]
+        return start_range
+
+    def get_parameter_names(self) -> Set[str]:
+        return self.parameters
+
+    def get_ranges(self) -> List[Dict[str, List[float]]]:
+        return self.rand_ranges
+
+    def dump(self, filename: str) -> None:
+        write_json_file(filename, self.rand_ranges)
+
+
 def black_box_function(min_bw, max_bw, bw_change_interval, link_rtt,
-                       buffer_thresh, duration, heuristic, model_path):
+                       buffer_thresh, duration, heuristic, model_path,
+                       video_size_file_dir, save_dir=""):
     '''
     :param x: input is the current params
-    :return: reward is the mpc-rl reward
+    :return: reward is rule-based solution - rl reward
     '''
+    max_bw = np.exp(max_bw)
     traces = [generate_trace(bw_change_interval, duration, min_bw, max_bw,
                              link_rtt, buffer_thresh) for _ in range(10)]
+    save_dirs = [os.path.join(save_dir, 'trace_{}'.format(i)) for i in range(10)]
+
+    hrewards = heuristic.test_on_traces(traces, video_size_file_dir, save_dirs)
+    pensieve = Pensieve(model_path)
+    rlrewards = pensieve.test_on_traces(traces, video_size_file_dir, save_dirs)
+
+    gap = np.mean(hrewards) - np.mean(rlrewards)
+    return gap
+
     # path = os.path.join( RESULTS_DIR, 'model_saved' )
     # latest_model_path = latest_actor_from(path)
 
@@ -93,68 +146,100 @@ def black_box_function(min_bw, max_bw, bw_change_interval, link_rtt,
 
 class Genet:
 
-    def train(self, rounds: int):
+    def __init__(self, config_file: str, save_dir: str,
+                 black_box_function: Callable, heuristic,
+                 model_path: str, video_size_file_dir: str, nagent: int = 10,
+                 n_init_pts: int = 10, n_iter: int = 5, seed: int = 42):
+
+        self.config_file = config_file
+        self.cur_config_file = config_file
+        self.n_init_pts = n_init_pts
+        self.n_iter = n_iter
+        self.black_box_function = black_box_function
+        self.heuristic = heuristic
+        self.seed = seed
+        self.nagent = nagent
+        self.model_path = model_path
+        self.start_model_path = model_path
+        self.save_dir = save_dir
+        self.video_size_file_dir = video_size_file_dir
+
+        self.rand_ranges = RandomizationRanges(self.config_file)
+        self.param_names = self.rand_ranges.get_parameter_names()
+        self.pbounds = copy.deepcopy(self.rand_ranges.get_original_range())
+        if 'max_bw' in self.pbounds:
+            self.pbounds['max_bw'][0] = np.log(self.pbounds['max_bw'][0])
+            self.pbounds['max_bw'][1] = np.log(self.pbounds['max_bw'][1])
+
+    def train(self, rounds: int, epoch_per_round: int):
         """
         """
         # BO guided training flow:
-        for i in range(0, rounds):
-            pbounds = {'x': (0 ,1)}
+        for i in range(rounds):
+            duration = 330
+            training_save_dir = os.path.join(self.save_dir, "bo_{}".format(i))
+            os.makedirs(training_save_dir, exist_ok=True)
             optimizer = BayesianOptimization(
-                f=black_box_function ,
-                pbounds=pbounds
-            )
+                    f=lambda min_bw, max_bw, bw_change_interval, link_rtt,
+                    buffer_thresh: self.black_box_function(
+                    min_bw, max_bw, bw_change_interval, link_rtt, buffer_thresh,
+                    duration=duration, heuristic=self.heuristic,
+                    model_path=self.model_path,
+                    video_size_file_dir=self.video_size_file_dir,
+                    save_dir=os.path.join(training_save_dir, 'bo_traces')),
+                    pbounds=self.pbounds,
+                    random_state=self.seed+i)
 
             optimizer.maximize(
-                init_points=13,
-                n_iter=2,
+                init_points=self.n_init_pts,
+                n_iter=self.n_iter,
                 kappa=20,
                 xi=0.1
             )
-            next = optimizer.max
-            param = next.get( 'params' ).get( 'x' )
-            #bo_best_param = round( param ,2 )
-            bo_best_param = map_log_to_lin(param)
-            print( "BO chose this best param........", param, bo_best_param )
+            best_param = optimizer.max
+            best_param['params']
+            self.rand_ranges.add_ranges([best_param['params']])
+            self.cur_config_file = os.path.join(
+                self.save_dir, "bo_"+str(i) + ".json")
+            self.rand_ranges.dump(self.cur_config_file)
 
-            # # Use the new param, add more traces into Pensieve, train more based on before
+            cmd = "python pensieve/train.py " \
+                    "--total-epoch={total_epoch} " \
+                    "--seed={seed} " \
+                    "--save-dir={save_dir} " \
+                    "--exp-name={exp_name} " \
+                    "--model-path={model_path} " \
+                    "--video-size-file-dir={video_size_file_dir} " \
+                    "udr " \
+                    "--config-file={config_file} " \
+                    "--val-trace-dir={val_dir}".format(
+                        total_epoch=epoch_per_round,
+                        seed=self.seed,
+                        save_dir=training_save_dir,
+                        exp_name='bo_{}'.format(i),
+                        model_path=self.model_path,
+                        config_file=self.cur_config_file,
+                        video_size_file_dir=self.video_size_file_dir,
+                        val_dir='/Users/zxxia/Project/clean-genet-abr/data/BO_stable_traces/test/val_FCC/')
+            print(cmd)
+            subprocess.run(cmd.split(' '))
+            self.model_path = latest_actor_from(
+                os.path.join(training_save_dir, "model_saved"))
+            print('current model', self.model_path)
 
-            # bo_best_param = 100   # for debugging
-            path = os.path.join( RESULTS_DIR ,'model_saved' )
-            latest_model_path = latest_actor_from( path )
-
-            command = "python multi_agent.py \
-                            --TOTAL_EPOCH=10000\
-                            --train_trace_dir={training_dir} \
-                            --val_trace_dir='{val_dir}'\
-                            --summary_dir={results_dir}\
-                            --description='first-run' \
-                            --nn_model={model_path}\
-                            --param_type_flag={param_type} \
-                            --param_name={param_name} \
-                            --CURRENT_VALUE={bo_output_param}"  \
-                            .format(training_dir=TRAINING_DATA_DIR, val_dir=VAL_TRACE_DIR,
-                                    results_dir=RESULTS_DIR, model_path=latest_model_path,
-                                    param_type=PARAM_TYPE, param_name=CURRENT_PARAM, bo_output_param=bo_best_param)
-            os.system(command)
-
-            print("Running training:", i)
-            i += 1
-
-        print("Hooray!")
 
 def main():
     args = parse_args()
-
+    set_seed(args.seed)
     if args.heuristic == 'mpc':
         heuristic = RobustMPC()
     else:
         raise NotImplementedError
 
+    genet = Genet(args.config_file, args.save_dir, black_box_function,
+                  heuristic, args.model_path, args.video_size_file_dir)
 
-    genet = Genet()
-
-    genet.train(args.bo_rounds, )
-
+    genet.train(args.bo_rounds, epoch_per_round=5000)
 
 
 if __name__ == '__main__':

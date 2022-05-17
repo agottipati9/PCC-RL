@@ -238,6 +238,26 @@ class Pensieve:
                 saver.restore(sess, self.model_path)
             return self._test(actor, trace, video_size_file_dir, save_dir)
 
+    def test_on_traces(self, traces: List[AbrTrace], video_size_file_dir: str,
+                       save_dirs: List[str]):
+        rewards = []
+        tf.reset_default_graph()
+        with tf.compat.v1.Session() as sess:
+            actor = a3c.ActorNetwork(
+                sess,
+                state_dim=[self.s_info, self.s_len],
+                action_dim=self.a_dim,
+                bitrate_dim=BITRATE_DIM,
+            )
+
+            sess.run(tf.compat.v1.global_variables_initializer())
+            saver = tf.compat.v1.train.Saver(max_to_keep=15)
+            if self.model_path:
+                saver.restore(sess, self.model_path)
+            for trace, save_dir in zip(traces, save_dirs):
+                rewards.append(self._test(actor, trace, video_size_file_dir, save_dir))
+        return rewards
+
     def train(self, trace_scheduler, val_traces: List[AbrTrace],
               save_dir: str, num_agents: int, total_epoch: int,
               video_size_file_dir: str, model_save_interval: int = 100,

@@ -36,13 +36,13 @@ def parse_args():
         help="Total number of epoch to be trained.",
     )
     parser.add_argument(
-        "--pretrained-model-path",
+        "--model-path",
         type=str,
         default="",
         help="Path to a pretrained Tensorflow checkpoint.",
     )
     parser.add_argument(
-        "--video_size_file_dir",
+        "--video-size-file-dir",
         type=str,
         default="",
         help="Path to video size files.",
@@ -127,17 +127,15 @@ def parse_args():
 def main():
     args = parse_args()
     assert (
-        not args.pretrained_model_path
-        or args.pretrained_model_path.endswith(".ckpt")
+        not args.model_path
+        or args.model_path.endswith(".ckpt")
     )
     os.makedirs(args.save_dir, exist_ok=True)
     save_args(args, args.save_dir)
     set_seed(args.seed)
 
     # Initialize model and agent policy
-    pensieve = Pensieve(
-        model_path=args.pretrained_model_path,
-    )
+    pensieve = Pensieve(model_path=args.model_path)
         # args.seed,
         # args.save_dir,
         # int(args.val_freq / nagents),

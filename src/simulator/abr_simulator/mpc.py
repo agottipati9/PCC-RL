@@ -83,10 +83,9 @@ def calculate_rebuffer(size_video_array, future_chunk_length, buffer_size,
 class RobustMPC(object):
     abr_name = "mpc"
 
-
-    def test_traces(self, traces: List[AbrTrace], video_size_file_dir: str, save_dir: str):
+    def test_on_traces(self, traces: List[AbrTrace], video_size_file_dir: str, save_dirs: List[str]):
         rewards = []
-        for trace in traces:
+        for trace, save_dir in zip(traces, save_dirs):
             rewards.append(self.test(trace, video_size_file_dir, save_dir))
         return rewards
 

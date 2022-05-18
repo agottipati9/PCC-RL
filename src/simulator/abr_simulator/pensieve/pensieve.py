@@ -14,7 +14,6 @@ import visdom
 
 from simulator.abr_simulator.abr_trace import AbrTrace
 from simulator.abr_simulator.schedulers import TestScheduler
-# from simulator.abr_simulator.base_abr import BaseAbr
 from simulator.abr_simulator.constants import (
     A_DIM,
     BUFFER_NORM_FACTOR,
@@ -74,6 +73,14 @@ class Pensieve:
         self.s_len = s_len
         self.a_dim = a_dim
         self.model_path = model_path
+        self.jump_action = False
+        if self.s_info == 6 and self.s_len == 8 and self.a_dim == 6:
+            print('use original pensieve')
+        elif self.s_info == 6 and self.s_len == 6 and self.a_dim == 3:
+            self.jump_action = True
+            print('use jump action')
+        else:
+            raise NotImplementedError
 
     # def load_model(self, model_path: str):
     #     self.saver.restore(self.sess, model_path)
@@ -169,12 +176,15 @@ class Pensieve:
                 np.reshape(state, (1, self.s_info, self.s_len))
             )
             action_cumsum = np.cumsum(action_prob)
-            bit_rate = (
-                action_cumsum
-                > np.random.randint(1, RAND_RANGE) / float(RAND_RANGE)
-            ).argmax()
-            # bit_rate = action_prob.argmax()
-            # bit_rate = calculate_from_selection( selection ,last_bit_rate )
+            if self.jump_action:
+                selection = (action_cumsum > np.random.randint(
+                     1, RAND_RANGE) / float(RAND_RANGE)).argmax()
+                bit_rate = calculate_from_selection(selection, last_bit_rate)
+            else:
+                bit_rate = (
+                    action_cumsum
+                    > np.random.randint(1, RAND_RANGE) / float(RAND_RANGE)
+                ).argmax()
             # Note: we need to discretize the probability into 1/RAND_RANGE steps,
             # because there is an intrinsic discrepancy in passing single state and batch states
 
@@ -289,7 +299,7 @@ class Pensieve:
                 target=agent,
                 args=(TRAIN_SEQ_LEN, self.s_info, self.s_len, self.a_dim,
                       save_dir, i, net_params_queues[i], exp_queues[i], trace_scheduler,
-                      video_size_file_dir)))
+                      video_size_file_dir, self.jump_action)))
         for i in range(num_agents):
             agents[i].start()
         with tf.Session() as sess, \
@@ -480,7 +490,8 @@ class Pensieve:
 
 def agent(train_seq_len: int, s_info: int, s_len: int, a_dim: int,
           save_dir: str, agent_id: int, net_params_queue: mp.Queue,
-          exp_queue: mp.Queue, trace_scheduler, video_size_file_dir: str):
+          exp_queue: mp.Queue, trace_scheduler, video_size_file_dir: str,
+          jump_action: bool):
     """Agent method for A2C/A3C training framework.
 
     Args
@@ -580,8 +591,15 @@ def agent(train_seq_len: int, s_info: int, s_len: int, a_dim: int,
                 import pdb
                 pdb.set_trace()
             action_cumsum = np.cumsum(action_prob)
-            bit_rate = (action_cumsum > np.random.randint(
-                1, RAND_RANGE) / float(RAND_RANGE)).argmax()
+            if jump_action:
+                selection = (action_cumsum > np.random.randint(
+                     1, RAND_RANGE) / float(RAND_RANGE)).argmax()
+                bit_rate = calculate_from_selection(selection, last_bit_rate)
+            else:
+                bit_rate = (
+                    action_cumsum
+                    > np.random.randint(1, RAND_RANGE) / float(RAND_RANGE)
+                ).argmax()
 
             # selection = (action_cumsum > np.random.randint(
             #     1, args.RAND_RANGE) / float(args.RAND_RANGE)).argmax()

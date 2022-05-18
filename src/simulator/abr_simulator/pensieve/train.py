@@ -21,6 +21,10 @@ def parse_args():
     """Parse arguments from the command line."""
     parser = argparse.ArgumentParser("Training code.")
     parser.add_argument(
+        "--jump-action", action="store_true",
+        help="Use jump action when specified."
+    )
+    parser.add_argument(
         "--exp-name", type=str, default="", help="Experiment name."
     )
     parser.add_argument(
@@ -136,7 +140,10 @@ def main():
     set_seed(args.seed)
 
     # Initialize model and agent policy
-    pensieve = Pensieve(model_path=args.model_path)
+    if args.jump_action:
+        pensieve = Pensieve(args.model_path)
+    else:
+        pensieve = Pensieve(args.model_path, 6, 6, 3)
         # args.seed,
         # args.save_dir,
         # int(args.val_freq / nagents),

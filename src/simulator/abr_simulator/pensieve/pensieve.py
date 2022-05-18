@@ -305,11 +305,12 @@ class Pensieve:
         with tf.Session() as sess, \
                 open(os.path.join(save_dir, 'log_train'), 'w', 1) as log_central_file, \
                 open(os.path.join(save_dir, 'log_val'), 'w', 1) as val_log_file:
-            log_writer = csv.writer(log_central_file, delimiter='\t')
+            log_writer = csv.writer(log_central_file, delimiter='\t', lineterminator='\n')
             log_writer.writerow(['epoch', 'loss', 'avg_reward', 'avg_entropy'])
-            val_log_file.write("\t".join(
+            val_log_writer = csv.writer(val_log_file, delimiter='\t', lineterminator='\n')
+            val_log_writer.writerow(
                 ['epoch', 'rewards_min', 'rewards_5per', 'rewards_mean',
-                 'rewards_median', 'rewards_95per', 'rewards_max\n']))
+                 'rewards_median', 'rewards_95per', 'rewards_max'])
 
             actor = a3c.ActorNetwork(sess,
                                      state_dim=[self.s_info, self.s_len],
@@ -426,11 +427,12 @@ class Pensieve:
                         actor, trace, video_size_file_dir=video_size_file_dir,
                         save_dir=save_dir) for trace in val_traces]
                     val_mean_reward = np.mean(val_rewards)
-                    # print(val_rewards)
-                    print(epoch, val_mean_reward)
-                    # test_mean_reward = testing(
-                    #     args, epoch, actor, val_log_file, args.val_trace_dir,
-                    #     os.path.join(args.summary_dir, 'test_results'))
+
+                    val_log_writer.writerow(
+                            [epoch, np.min(val_rewards),
+                             np.percentile(val_rewards, 5), np.mean(val_rewards),
+                             np.median(val_rewards), np.percentile(val_rewards, 95),
+                             np.max(val_rewards)])
                     val_epochs.append(epoch)
                     val_mean_rewards.append(val_mean_reward)
                     average_rewards.append(np.sum(avg_reward))
@@ -504,8 +506,9 @@ def agent(train_seq_len: int, s_info: int, s_len: int, a_dim: int,
     net_env = Environment(trace_scheduler, VIDEO_CHUNK_LEN / MILLISECONDS_IN_SECOND,
                           video_size_file_dir=video_size_file_dir,
                           random_seed=agent_id)
-    with tf.compat.v1.Session() as sess, open(os.path.join(
-            save_dir, f'log_agent_{agent_id}'), 'w') as log_file:
+    with tf.compat.v1.Session() as sess:
+        # , open(os.path.join(
+        #     save_dir, f'log_agent_{agent_id}'), 'w') as log_file:
 
         # log_file.write('\t'.join(['time_stamp', 'bit_rate', 'buffer_size',
         #                'rebuffer', 'video_chunk_size', 'delay', 'reward',
@@ -629,7 +632,7 @@ def agent(train_seq_len: int, s_info: int, s_len: int, a_dim: int,
                 del entropy_record[:]
 
                 # so that in the log we know where video ends
-                log_file.write('\n')
+                # log_file.write('\n')
 
             # store the state and action into batches
             if end_of_video:

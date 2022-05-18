@@ -126,25 +126,25 @@ def generate_trace_from_ranges(bw_change_interval_range, min_bw_range,
             buffer_thresh_range[0] <= buffer_thresh_range[1]
 
     if bw_change_interval_range[0] == bw_change_interval_range[1]:
-        bw_change_interval = round(bw_change_interval_range[0])
+        bw_change_interval = bw_change_interval_range[0]
     else:
-        bw_change_interval = np.random.randint(
+        bw_change_interval = np.random.uniform(
             bw_change_interval_range[0], bw_change_interval_range[1])
 
     if min_bw_range[0] == min_bw_range[1]:
-        min_bw = round(min_bw_range[0])
+        min_bw = min_bw_range[0]
     else:
-        min_bw = np.random.randint(min_bw_range[0], min_bw_range[1])
-    max_bw = round(np.exp(np.random.uniform(np.log(max_bw_range[0]), np.log(max_bw_range[1]))))
+        min_bw = np.random.uniform(min_bw_range[0], min_bw_range[1])
+    max_bw = np.exp(np.random.uniform(np.log(max_bw_range[0]), np.log(max_bw_range[1])))
 
     if link_rtt_range[0] == link_rtt_range[1]:
-        link_rtt = round(link_rtt_range[0])
+        link_rtt = link_rtt_range[0]
     else:
-        link_rtt = np.random.randint(link_rtt_range[0], link_rtt_range[1])
+        link_rtt = np.random.uniform(link_rtt_range[0], link_rtt_range[1])
     if buffer_thresh_range[0] == buffer_thresh_range[1]:
-        buffer_thresh = round(buffer_thresh_range[0])
+        buffer_thresh = buffer_thresh_range[0]
     else:
-        buffer_thresh = np.random.randint(buffer_thresh_range[0], buffer_thresh_range[1])
+        buffer_thresh = np.random.uniform(buffer_thresh_range[0], buffer_thresh_range[1])
     return generate_trace(bw_change_interval, duration, min_bw, max_bw, link_rtt,
                           buffer_thresh)
 

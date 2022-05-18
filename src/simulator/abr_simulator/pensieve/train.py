@@ -14,6 +14,7 @@ from simulator.abr_simulator.abr_trace import AbrTrace
 from common.utils import set_seed, save_args
 
 warnings.filterwarnings("ignore")
+os.environ['CUDA_VISIBLE_DEVICES'] = ''
 
 
 def parse_args():

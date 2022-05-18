@@ -106,7 +106,11 @@ class Pensieve:
         bit_rate = DEFAULT_QUALITY
 
         action_vec = np.zeros(self.a_dim)
-        action_vec[bit_rate] = 1
+        if self.jump_action:
+            selection = 0
+            action_vec[selection] = 1
+        else:
+            action_vec[bit_rate] = 1
 
         s_batch = [np.zeros((self.s_info, self.s_len))]
         a_batch = [action_vec]
@@ -205,7 +209,11 @@ class Pensieve:
                 del r_batch[:]
 
                 action_vec = np.zeros(self.a_dim)
-                action_vec[bit_rate] = 1
+                if self.jump_action:
+                    selection = 0
+                    action_vec[selection] = 1
+                else:
+                    action_vec[bit_rate] = 1
 
                 s_batch.append(np.zeros((self.s_info, self.s_len)))
                 a_batch.append(action_vec)
@@ -526,12 +534,15 @@ def agent(train_seq_len: int, s_info: int, s_len: int, a_dim: int,
         critic.set_network_params(critic_net_params)
 
         last_bit_rate = DEFAULT_QUALITY
-        # selection = 0
+        selection = 0
         bit_rate = DEFAULT_QUALITY
 
         #action_vec = np.array( [VIDEO_BIT_RATE[last_bit_rate] ,VIDEO_BIT_RATE[bit_rate] ,selection] )
         action_vec = np.zeros(a_dim)
-        action_vec[bit_rate] = 1
+        if jump_action:
+            action_vec[selection] = 1
+        else:
+            action_vec[bit_rate] = 1
 
         s_batch = [np.zeros((s_info, s_len))]
         a_batch = [action_vec]
@@ -638,10 +649,13 @@ def agent(train_seq_len: int, s_info: int, s_len: int, a_dim: int,
             if end_of_video:
                 last_bit_rate = DEFAULT_QUALITY
                 bit_rate = DEFAULT_QUALITY  # use the default action here
-
                 #action_vec = np.array( [VIDEO_BIT_RATE[last_bit_rate] ,VIDEO_BIT_RATE[bit_rate] ,selection] )
                 action_vec = np.zeros(a_dim)
-                action_vec[bit_rate] = 1
+                if jump_action:
+                    selection = 0
+                    action_vec[selection] = 1
+                else:
+                    action_vec[bit_rate] = 1
                 s_batch.append(np.zeros((s_info, s_len)))
                 a_batch.append(action_vec)
                 epoch += 1
@@ -653,7 +667,10 @@ def agent(train_seq_len: int, s_info: int, s_len: int, a_dim: int,
                 #action_vec = np.zeros(args.A_DIM)
                 #action_vec = np.array( [VIDEO_BIT_RATE[last_bit_rate] ,VIDEO_BIT_RATE[bit_rate] ,selection] )
                 action_vec = np.zeros(a_dim)
-                action_vec[bit_rate] = 1
+                if jump_action:
+                    action_vec[selection] = 1
+                else:
+                    action_vec[bit_rate] = 1
                 #print(action_vec)
                 a_batch.append(action_vec)
 

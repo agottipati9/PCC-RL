@@ -45,7 +45,7 @@ class AbrTrace:
 
 def generate_bw_time_series(T_s, duration, min_bw, max_bw):
     """Generate a network bandwidth trace."""
-    max_bw_low = max (max_bw-50, 1)
+    max_bw_low = max(max_bw-50, 1)
     max_bw = round(np.random.uniform(max_bw_low ,max_bw))
     flag = np.random.randint(0, 1)
     if flag == 0:
@@ -64,7 +64,10 @@ def generate_bw_time_series(T_s, duration, min_bw, max_bw):
     while ts < duration:
         if cnt <= 0:
             bw_val = round(np.random.uniform(min_bw, max_bw), round_digit)
-            cnt = np.random.randint(1, T_s + 1)
+            if T_s + 1 == 1:
+                cnt = np.random.randint(1, T_s + 1)
+            else:
+                cnt = 1
 
         elif cnt >= 1:
             bw_val = last_val

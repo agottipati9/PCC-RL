@@ -141,9 +141,9 @@ def main():
 
     # Initialize model and agent policy
     if args.jump_action:
-        pensieve = Pensieve(args.model_path)
-    else:
         pensieve = Pensieve(args.model_path, 6, 6, 3)
+    else:
+        pensieve = Pensieve(args.model_path)
         # args.seed,
         # args.save_dir,
         # int(args.val_freq / nagents),

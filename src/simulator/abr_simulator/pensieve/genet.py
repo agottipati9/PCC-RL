@@ -2,6 +2,7 @@ import argparse
 import copy
 import subprocess
 import os
+os.environ['CUDA_VISIBLE_DEVICES'] = ''
 from typing import Callable, Dict, List, Set, Union
 
 import numpy as np
@@ -35,8 +36,16 @@ def parse_args():
                         help="Rounds of BO.")
     parser.add_argument('--seed', type=int, default=42, help='seed')
     parser.add_argument('--heuristic', type=str, default="mpc",
-                        choices=('mpc'),
-                        help='Congestion control rule based method.')
+                        choices=('mpc'), help='ABR rule based method.')
+    parser.add_argument("--jump-action", action="store_true",
+                        help="Use jump action when specified.")
+    parser.add_argument(
+        "--val-trace-dir",
+        type=str,
+        default="",
+        help="A directory contains the validation trace files.",
+    )
+
 
     return parser.parse_args()
 
@@ -105,7 +114,7 @@ class RandomizationRanges:
 
 def black_box_function(min_bw, max_bw, bw_change_interval, link_rtt,
                        buffer_thresh, duration, heuristic, model_path,
-                       video_size_file_dir, save_dir=""):
+                       video_size_file_dir, jump_action, save_dir=""):
     '''
     :param x: input is the current params
     :return: reward is rule-based solution - rl reward
@@ -116,7 +125,10 @@ def black_box_function(min_bw, max_bw, bw_change_interval, link_rtt,
     save_dirs = [os.path.join(save_dir, 'trace_{}'.format(i)) for i in range(10)]
 
     hrewards = heuristic.test_on_traces(traces, video_size_file_dir, save_dirs)
-    pensieve = Pensieve(model_path)
+    if jump_action:
+        pensieve = Pensieve(model_path, 6, 6, 3)
+    else:
+        pensieve = Pensieve(model_path)
     rlrewards = pensieve.test_on_traces(traces, video_size_file_dir, save_dirs)
 
     gap = np.mean(hrewards) - np.mean(rlrewards)
@@ -149,7 +161,8 @@ class Genet:
     def __init__(self, config_file: str, save_dir: str,
                  black_box_function: Callable, heuristic,
                  model_path: str, video_size_file_dir: str, nagent: int = 10,
-                 n_init_pts: int = 10, n_iter: int = 5, seed: int = 42):
+                 n_init_pts: int = 10, n_iter: int = 5, seed: int = 42,
+                 jump_action: bool = False):
 
         self.config_file = config_file
         self.cur_config_file = config_file
@@ -163,6 +176,7 @@ class Genet:
         self.start_model_path = model_path
         self.save_dir = save_dir
         self.video_size_file_dir = video_size_file_dir
+        self.jump_action = jump_action
 
         self.rand_ranges = RandomizationRanges(self.config_file)
         self.param_names = self.rand_ranges.get_parameter_names()
@@ -171,7 +185,7 @@ class Genet:
             self.pbounds['max_bw'][0] = np.log(self.pbounds['max_bw'][0])
             self.pbounds['max_bw'][1] = np.log(self.pbounds['max_bw'][1])
 
-    def train(self, rounds: int, epoch_per_round: int):
+    def train(self, rounds: int, epoch_per_round: int, val_dir: str):
         """
         """
         # BO guided training flow:
@@ -184,7 +198,7 @@ class Genet:
                     buffer_thresh: self.black_box_function(
                     min_bw, max_bw, bw_change_interval, link_rtt, buffer_thresh,
                     duration=duration, heuristic=self.heuristic,
-                    model_path=self.model_path,
+                    model_path=self.model_path, jump_action=self.jump_action,
                     video_size_file_dir=self.video_size_file_dir,
                     save_dir=os.path.join(training_save_dir, 'bo_traces')),
                     pbounds=self.pbounds,
@@ -203,24 +217,28 @@ class Genet:
                 self.save_dir, "bo_"+str(i) + ".json")
             self.rand_ranges.dump(self.cur_config_file)
 
-            cmd = "python pensieve/train.py " \
+            cmd = "python abr_simulator/pensieve/train.py " \
                     "--total-epoch={total_epoch} " \
                     "--seed={seed} " \
                     "--save-dir={save_dir} " \
                     "--exp-name={exp_name} " \
                     "--model-path={model_path} " \
-                    "--video-size-file-dir={video_size_file_dir} " \
-                    "udr " \
-                    "--config-file={config_file} " \
-                    "--val-trace-dir={val_dir}".format(
+                    "--video-size-file-dir={video_size_file_dir} ".format(
                         total_epoch=epoch_per_round,
                         seed=self.seed,
                         save_dir=training_save_dir,
                         exp_name='bo_{}'.format(i),
                         model_path=self.model_path,
+                        video_size_file_dir=self.video_size_file_dir)
+
+            if self.jump_action:
+                cmd += "--jump-action "
+
+            cmd += "udr " \
+                    "--config-file={config_file} " \
+                    "--val-trace-dir={val_dir}".format(
                         config_file=self.cur_config_file,
-                        video_size_file_dir=self.video_size_file_dir,
-                        val_dir='/Users/zxxia/Project/clean-genet-abr/data/BO_stable_traces/test/val_FCC/')
+                        val_dir=val_dir)
             print(cmd)
             subprocess.run(cmd.split(' '))
             self.model_path = latest_actor_from(
@@ -237,9 +255,10 @@ def main():
         raise NotImplementedError
 
     genet = Genet(args.config_file, args.save_dir, black_box_function,
-                  heuristic, args.model_path, args.video_size_file_dir)
+                  heuristic, args.model_path, args.video_size_file_dir,
+                  jump_action=args.jump_action)
 
-    genet.train(args.bo_rounds, epoch_per_round=5000)
+    genet.train(args.bo_rounds, epoch_per_round=5000, val_dir=args.val_trace_dir)
 
 
 if __name__ == '__main__':

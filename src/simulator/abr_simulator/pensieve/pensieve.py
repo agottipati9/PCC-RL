@@ -9,6 +9,7 @@ import numpy as np
 import tensorflow as tf
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+os.environ['CUDA_VISIBLE_DEVICES'] = ''
 import visdom
 
 
@@ -89,8 +90,12 @@ class Pensieve:
     def _test(self, actor: a3c.ActorNetwork, trace: AbrTrace,
               video_size_file_dir: str, save_dir: str):
         os.makedirs(save_dir, exist_ok=True)
-        abr_log = open(os.path.join(save_dir, "{}_log.csv".format(self.abr_name)), 'w')
-        log_writer = csv.writer(abr_log)
+        if trace.name:
+            log_name = os.path.join(save_dir, "{}_{}.csv".format(self.abr_name, trace.name))
+        else:
+            log_name = os.path.join(save_dir, "{}_log.csv".format(self.abr_name))
+        abr_log = open(log_name, 'w')
+        log_writer = csv.writer(abr_log, lineterminator='\n')
         log_writer.writerow(["timestamp", "bitrate", "buffer_size",
                              "rebuffering", "video_chunk_size", "delay",
                              "reward"])
@@ -232,6 +237,7 @@ class Pensieve:
                 # )
                 # log_file = open(log_path, "w")
                 break
+        abr_log.close()
         return final_reward
 
     def test(self, trace: AbrTrace, video_size_file_dir: str, save_dir: str):

@@ -91,8 +91,12 @@ class RobustMPC(object):
 
     def test(self, trace: AbrTrace, video_size_file_dir: str, save_dir: str):
         os.makedirs(save_dir, exist_ok=True)
-        abr_log = open(os.path.join(save_dir, "{}_log.csv".format(self.abr_name)), 'w')
-        log_writer = csv.writer(abr_log)
+        if trace.name:
+            log_name = os.path.join(save_dir, "{}_{}.csv".format(self.abr_name, trace.name))
+        else:
+            log_name = os.path.join(save_dir, "{}_log.csv".format(self.abr_name))
+        abr_log = open(log_name, 'w')
+        log_writer = csv.writer(abr_log, lineterminator='\n')
         log_writer.writerow(["timestamp", "bitrate", "buffer_size",
                              "rebuffering", "video_chunk_size", "delay",
                              "reward"])

@@ -1,5 +1,6 @@
 import argparse
 import copy
+import json
 import subprocess
 import os
 os.environ['CUDA_VISIBLE_DEVICES'] = ''
@@ -7,6 +8,8 @@ from typing import Callable, Dict, List, Set, Union
 
 import numpy as np
 from bayes_opt import BayesianOptimization
+from bayes_opt.observer import _Tracker
+from bayes_opt.event import Events
 
 from simulator.abr_simulator.abr_trace import generate_trace
 from simulator.abr_simulator.utils import map_log_to_lin, latest_actor_from, map_to_unnormalize
@@ -15,11 +18,6 @@ from common.utils import (
 from simulator.abr_simulator.mpc import RobustMPC
 from simulator.abr_simulator.pensieve.pensieve import Pensieve
 
-# TRAINING_DATA_DIR = "../data/BO_stable_traces/train/"
-# VAL_TRACE_DIR = '../data/BO_stable_traces/test/val_FCC/'
-RESULTS_DIR = "../BO-results/randomize-param"
-
-PARAM_TYPE = "Trace"    #  or "Env"
 
 def parse_args():
     """Parse arguments from the command line."""
@@ -46,8 +44,35 @@ def parse_args():
         help="A directory contains the validation trace files.",
     )
 
-
     return parser.parse_args()
+
+
+class JSONLogger(_Tracker):
+    def __init__(self, path):
+        self._path = path if path[-5:] == ".json" else path + ".json"
+        try:
+            os.remove(self._path)
+        except OSError:
+            pass
+        super(JSONLogger, self).__init__()
+
+    def update(self, event, instance):
+        if event == Events.OPTIMIZATION_STEP:
+            data = dict(instance.res[-1])
+
+            now, time_elapsed, time_delta = self._time_metrics()
+            data["datetime"] = {
+                "datetime": now,
+                "elapsed": time_elapsed,
+                "delta": time_delta,
+            }
+            data2dump = copy.deepcopy(data)
+            data2dump['params']['max_bw'] = np.exp(data2dump['params']['max_bw'])
+
+            with open(self._path, "a") as f:
+                f.write(json.dumps(data2dump) + "\n")
+
+        self._update_tracker(event, instance)
 
 
 class RandomizationRanges:
@@ -134,27 +159,6 @@ def black_box_function(min_bw, max_bw, bw_change_interval, link_rtt,
     gap = np.mean(hrewards) - np.mean(rlrewards)
     return gap
 
-    # path = os.path.join( RESULTS_DIR, 'model_saved' )
-    # latest_model_path = latest_actor_from(path)
-
-    #TODO: different param need different mapping
-    # if CURRENT_PARAM == "MAX_THROUGHPUT":
-    #     x_map = map_log_to_lin(x)
-    # else:
-    #     x_map = map_to_unnormalize(x, min_value=CURRENT_PARAM_MIN, max_value=CURRENT_PARAM_MAX)
-
-    # print(x_map, "-----current value")
-
-    # command = " python rl_test.py  \
-    #             --param_name={updating_param_name} \
-    #             --CURRENT_VALUE={current_test_value} \
-    #             --test_trace_dir='../data/example_traces/' \
-    #             --summary_dir='../MPC_RL_test_results/' \
-    #             --model_path='{model_path}' \
-    #             ".format(updating_param_name=CURRENT_PARAM, current_test_value=x_map, model_path=latest_model_path)
-    #
-    # r = float(subprocess.check_output(command, shell=True, text=True).strip())
-    # return r
 
 class Genet:
 
@@ -204,6 +208,9 @@ class Genet:
                     pbounds=self.pbounds,
                     random_state=self.seed+i)
 
+            logger = JSONLogger(path=os.path.join(
+                self.save_dir, "bo_{}_logs.json".format(i)))
+            optimizer.subscribe(Events.OPTIMIZATION_STEP, logger)
             optimizer.maximize(
                 init_points=self.n_init_pts,
                 n_iter=self.n_iter,

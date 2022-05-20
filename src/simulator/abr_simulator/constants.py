@@ -7,7 +7,7 @@ M_IN_K = 1000.0
 REBUF_PENALTY = 10  # 1 sec rebuffering -> 3 Mbps
 # REBUF_PENALTY = 165  # 1 sec rebuffering -> 3 Mbps
 SMOOTH_PENALTY = 1
-DEFAULT_QUALITY = 1  # default video quality without agent
+DEFAULT_QUALITY = 0  # default video quality without agent
 
 
 # bit_rate, buffer_size, next_chunk_size, bandwidth_measurement(throughput and

@@ -218,11 +218,13 @@ class Connection:
                      self.datalink.link_capacity)
                  if ts >= min(self.datalink.throughput_timestamps[0],
                               self.datalink.sending_rate_timestamps[0])])
+        if np.isnan(avg_bw):
+            avg_bw = None
         reward = pcc_aurora_reward(
-            self.datalink.avg_throughput / avg_bw,  # * 1e6 / 8 / 1500,
+            self.datalink.avg_throughput * 1e6 / 8 / 1500,
             (np.mean(self.datalink.one_way_delay) +
              np.mean(self.acklink.one_way_delay)) / 1000,
-            self.datalink.loss_rate)
+            self.datalink.loss_rate, avg_bw)
         return reward
 
     def to_mahimahi_trace(self):

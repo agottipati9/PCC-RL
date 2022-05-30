@@ -1,7 +1,6 @@
 import csv
 import itertools
 import os
-import multiprocessing as mp
 from typing import List
 
 import numpy as np
@@ -11,7 +10,7 @@ from simulator.abr_simulator.abr_trace import AbrTrace
 from simulator.abr_simulator.schedulers import TestScheduler
 from simulator.abr_simulator.env import Environment
 from simulator.abr_simulator.constants import (
-        A_DIM, B_IN_MB, DEFAULT_QUALITY, M_IN_K, MILLISECONDS_IN_SECOND,
+        A_DIM, DEFAULT_QUALITY, M_IN_K, MILLISECONDS_IN_SECOND,
         VIDEO_BIT_RATE, VIDEO_CHUNK_LEN, REBUF_PENALTY, SMOOTH_PENALTY,
         BUFFER_NORM_FACTOR, TOTAL_VIDEO_CHUNK)
 # from simulator.abr_simulator.utils import linear_reward
@@ -80,8 +79,49 @@ def calculate_rebuffer(size_video_array, future_chunk_length, buffer_size,
     return send_data
 
 
+@jit(nopython=True)
+def next_possible_bitrates(br):
+    next_brs = [br - 1 ,br ,br + 1]
+    next_brs = [a for a in next_brs if 0 <= a <= 5]
+    return next_brs
+
+
+@jit(nopython=True)
+def calculate_jump_action_combo(br):
+    all_combos = CHUNK_COMBO_OPTIONS
+    combos = np.empty((0, 5), np.int64)
+    #combos = np.expand_dims( combos ,axis=0 )
+    for combo in all_combos:
+        br1 = combo[0]
+        if br1 in next_possible_bitrates( br ):
+            br2 = combo[1]
+            if br2 in next_possible_bitrates( br1 ):
+                br3 = combo[2]
+                if br3 in next_possible_bitrates( br2 ):
+                    br4 = combo[3]
+                    if br4 in next_possible_bitrates( br3 ):
+                        br5 = combo[4]
+                        if br5 in next_possible_bitrates( br4 ):
+                            combo = np.expand_dims( combo ,axis=0 )
+                            combos = np.append(combos, combo, axis=0)
+
+    return combos
+
+
 class RobustMPC(object):
     abr_name = "mpc"
+
+    def __init__(self, jump_action_flag: bool = False):
+        self.jump_action_flag = jump_action_flag
+        if self.jump_action_flag:
+
+            self.combo_dict = {
+                '0': calculate_jump_action_combo( 0 ) ,
+                '1': calculate_jump_action_combo( 1 ) ,
+                '2': calculate_jump_action_combo( 2 ) ,
+                '3': calculate_jump_action_combo( 3 ) ,
+                '4': calculate_jump_action_combo( 4 ) ,
+                '5': calculate_jump_action_combo( 5 )}
 
     def test_on_traces(self, traces: List[AbrTrace], video_size_file_dir: str, save_dirs: List[str]):
         rewards = []
@@ -103,19 +143,11 @@ class RobustMPC(object):
 
         np.random.seed(RANDOM_SEED)
 
-        # all_cooked_time ,all_cooked_bw ,all_file_names = load_traces(self.test_dir)
-
-        # net_env = example_env_config(args, all_cooked_time, all_cooked_bw)
         trace_scheduler = TestScheduler(trace)
         net_env = Environment(trace_scheduler, VIDEO_CHUNK_LEN / MILLISECONDS_IN_SECOND,
                               video_size_file_dir=video_size_file_dir)
         size_video_array = np.array([net_env.video_size[i] for i in
                                      sorted(net_env.video_size)])
-        # example_env_config(args, all_cooked_time, all_cooked_bw)
-
-        # log_path = os.path.join(
-        #     summary_dir, 'log_sim_mpc_' + all_file_names[net_env.trace_idx])
-        # log_file = open(log_path, 'w', 1)
 
         time_stamp = 0
 
@@ -129,7 +161,6 @@ class RobustMPC(object):
         a_batch = [action_vec]
         r_batch = []
 
-        # video_count = 0
         final_reward = 0
 
         # make chunk combination options
@@ -155,15 +186,6 @@ class RobustMPC(object):
             r_batch.append(reward)
 
             last_bit_rate = bit_rate
-
-            # log time_stamp, bit_rate, buffer_size, reward
-            # log_file.write(str(time_stamp / M_IN_K) + '\t' +
-            #                str(VIDEO_BIT_RATE[bit_rate]) + '\t' +
-            #                str(buffer_size) + '\t' +
-            #                str(rebuf) + '\t' +
-            #                str(video_chunk_size) + '\t' +
-            #                str(delay) + '\t' +
-            #                str(reward) + '\n')
 
             log_writer.writerow([time_stamp / M_IN_K, VIDEO_BIT_RATE[bit_rate],
                                  buffer_size, rebuf, video_chunk_size, delay,
@@ -223,19 +245,21 @@ class RobustMPC(object):
             # start = time.time()
             #chunk_combo_options = np.array( CHUNK_COMBO_OPTIONS )
 
+            if self.jump_action_flag:
+                action_combos = self.combo_dict[str(bit_rate)]
+            else:
+                action_combos = np.array(VIDEO_BIT_RATE)
+
             bit_rate = calculate_rebuffer(size_video_array, future_chunk_length, buffer_size, bit_rate,
-                                          last_index, future_bandwidth, np.array(VIDEO_BIT_RATE))
+                                          last_index, future_bandwidth, action_combos)
 
             s_batch.append(state)
 
             if end_of_video:
-                # log_file.write('\n')
-                # log_file.close()
 
                 last_bit_rate = DEFAULT_QUALITY
                 bit_rate = DEFAULT_QUALITY  # use the default action here
 
-                # print(r_batch, len(r_batch))
                 final_reward = sum(r_batch)
                 del s_batch[:]
                 del a_batch[:]
@@ -247,15 +271,6 @@ class RobustMPC(object):
                 s_batch.append(np.zeros((MPC_FUTURE_CHUNK_COUNT, S_LEN)))
                 a_batch.append(action_vec)
 
-                # video_count += 1
-
-                # if video_count >= len( all_file_names ):
-                #     break
-
-                # log_path = os.path.join(
-                #     summary_dir,
-                #     'log_sim_mpc_' + all_file_names[net_env.trace_idx])
-                # log_file = open(log_path, 'w', 1)
                 break
         abr_log.close()
         return final_reward

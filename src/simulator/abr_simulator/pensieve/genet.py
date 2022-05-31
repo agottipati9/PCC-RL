@@ -16,6 +16,7 @@ from simulator.abr_simulator.utils import map_log_to_lin, latest_actor_from, map
 from common.utils import (
     read_json_file, set_seed, write_json_file)
 from simulator.abr_simulator.mpc import RobustMPC
+from simulator.abr_simulator.bba import BBA
 from simulator.abr_simulator.pensieve.pensieve import Pensieve
 
 
@@ -34,7 +35,7 @@ def parse_args():
                         help="Rounds of BO.")
     parser.add_argument('--seed', type=int, default=42, help='seed')
     parser.add_argument('--heuristic', type=str, default="mpc",
-                        choices=('mpc'), help='ABR rule based method.')
+                        choices=('mpc', 'bba'), help='ABR rule based method.')
     parser.add_argument("--jump-action", action="store_true",
                         help="Use jump action when specified.")
     parser.add_argument(
@@ -258,6 +259,8 @@ def main():
     set_seed(args.seed)
     if args.heuristic == 'mpc':
         heuristic = RobustMPC()
+    elif args.heuristic == 'mpc':
+        heuristic = BBA()
     else:
         raise NotImplementedError
 

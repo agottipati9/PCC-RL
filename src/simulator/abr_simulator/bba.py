@@ -10,6 +10,7 @@ from simulator.abr_simulator.constants import (
         VIDEO_BIT_RATE, VIDEO_CHUNK_LEN, REBUF_PENALTY, SMOOTH_PENALTY)
 from simulator.abr_simulator.env import Environment
 from simulator.abr_simulator.schedulers import TestScheduler
+from simulator.abr_simulator.utils import plot_abr_log  # linear_reward
 
 
 RESEVOIR = 5  # BB
@@ -18,8 +19,8 @@ CUSHION = 10  # BB
 class BBA:
     abr_name = 'bba'
 
-    def __init__(self) -> None:
-        pass
+    def __init__(self, plot_flag: bool = False) -> None:
+        self.plot_flag = plot_flag
 
     def test_on_traces(self, traces: List[AbrTrace], video_size_file_dir: str, save_dirs: List[str]):
         rewards = []
@@ -50,6 +51,7 @@ class BBA:
         bit_rate = DEFAULT_QUALITY
 
         r_batch = []
+        final_reward = 0
 
         while True:  # serve video forever
             # the action is from the last decision
@@ -87,15 +89,14 @@ class BBA:
             bit_rate = int(bit_rate)
 
             if end_of_video:
-                # log_file.write('\n')
-                # log_file.close()
 
                 last_bit_rate = DEFAULT_QUALITY
                 bit_rate = DEFAULT_QUALITY  # use the default action here
+                final_reward = sum(r_batch)
                 r_batch = []
 
-                # log_path = os.path.join( summary_dir ,
-                #                          'log_sim_BBA_{}_{}'.format( args.log_str ,all_file_names[net_env.trace_idx] ) )
-                # log_file = open( log_path ,'w' )
                 break
         abr_log.close()
+        if self.plot_flag:
+            plot_abr_log(trace, log_name, save_dir)
+        return final_reward

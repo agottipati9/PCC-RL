@@ -1,10 +1,16 @@
 import os
+from typing import Optional
 
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 from numba import jit
 
 from simulator.abr_simulator.constants import (HD_REWARD, M_IN_K, REBUF_PENALTY,
                                 SMOOTH_PENALTY, VIDEO_BIT_RATE)
+from simulator.abr_simulator.abr_trace import AbrTrace
 
 @jit(nopython=True)
 def linear_reward(current_bitrate: int, last_bitrate: int, rebuffer: float):
@@ -189,3 +195,65 @@ def latest_actor_from(path):
     actor_path = str( path + '/' + actors[-1] )
     return os.path.splitext( actor_path )[0]
 
+
+def plot_abr_log(trace: Optional[AbrTrace], log_file: str, save_dir: Optional[str]):
+    fig, axes = plt.subplots(5, 1,  figsize=(12, 10))
+    log_name = os.path.splitext(os.path.basename(log_file))[0]
+    df = pd.read_csv(log_file)
+    assert isinstance(df, pd.DataFrame)
+    axes[0].plot(df['timestamp'], df['bitrate'], 'o-', ms=2,
+                 label='bitrate, avg {:.3f}kbps'.format(df['bitrate'].mean()))
+
+    # max_ts = trace.timestamps[-1]
+    print(df['timestamp'])
+    import pdb
+    pdb.set_trace()
+    max_ts = df['timestamp'].iloc[len(df['timestamp'])-1]
+    if trace:
+        if trace.timestamps[-1] < max_ts:
+            # max_ts = df['timestamp'][-1]
+            pass
+            # TODO: wrap around trace
+        axes[0].plot(trace.timestamps, np.array(trace.bandwidths) * 1000, 'o-', ms=2,
+                     label='bw, avg {:.3f}kbps'.format(1000*np.mean(trace.bandwidths)))
+
+    axes[0].set_xlabel("Time(s)")
+    axes[0].set_ylabel("kbps")
+    axes[0].legend(loc='right')
+    axes[0].set_ylim(0, )
+    axes[0].set_xlim(0, max_ts)
+
+    axes[1].plot(df['timestamp'], df['buffer_size'],
+                 label='Buffer size avg {:.3f}s'.format(df['buffer_size'].mean()))
+    axes[1].set_xlabel("Time(s)")
+    axes[1].set_ylabel("Buffer size(s)")
+    axes[1].legend(loc='right')
+    axes[1].set_xlim(0, max_ts)
+    axes[1].set_ylim(0, )
+
+    axes[2].plot(df['timestamp'], df['rebuffering'],
+                 label='Rebuffering avg {:.3f}s'.format(df['rebuffering'].mean()))
+    axes[2].set_xlabel("Time(s)")
+    axes[2].set_ylabel("Rebuffering(s)")
+    axes[2].legend(loc='right')
+    axes[2].set_xlim(0, max_ts)
+    axes[2].set_ylim(0, )
+
+    axes[3].plot(df['timestamp'], df['delay'] / 1000,
+                 label='Delay avg {:.3f}'.format(df['delay'].mean()/1000))
+    axes[3].set_xlabel("Time(s)")
+    axes[3].set_ylabel("Delay (s)")
+    axes[3].legend()
+    axes[3].set_xlim(0, max_ts)
+
+    axes[4].plot(df['timestamp'], df['reward'],
+            label='rewards avg {:.3f}, sum {:.3f}'.format(df['reward'].mean(), df['reward'].sum()))
+    axes[4].set_xlabel("Time(s)")
+    axes[4].set_ylabel("Reward")
+    axes[4].legend()
+    axes[4].set_xlim(0, max_ts)
+
+    plt.tight_layout()
+    if save_dir is not None:
+        fig.savefig(os.path.join(save_dir, "{}.jpg".format(log_name)))
+    plt.close()

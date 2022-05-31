@@ -33,6 +33,7 @@ from simulator.abr_simulator.constants import (
 )
 from simulator.abr_simulator.env import Environment
 from simulator.abr_simulator.pensieve import a3c
+from simulator.abr_simulator.utils import plot_abr_log  # linear_reward
 
 
 BITRATE_DIM = 6
@@ -60,7 +61,8 @@ class Pensieve:
 
     abr_name = "pensieve"
 
-    def __init__(self, model_path: str = "", s_info: int = 6, s_len: int = 8, a_dim: int = 6):
+    def __init__(self, model_path: str = "", s_info: int = 6, s_len: int = 8,
+                 a_dim: int = 6, plog_flag: bool = False):
         """Penseive
         Input state matrix shape: [s_info, s_len]
 
@@ -82,6 +84,7 @@ class Pensieve:
             print('use jump action')
         else:
             raise NotImplementedError
+        self.plot_flag = plot_flag
 
     # def load_model(self, model_path: str):
     #     self.saver.restore(self.sess, model_path)
@@ -221,6 +224,8 @@ class Pensieve:
 
                 break
         abr_log.close()
+        if self.plot_flag:
+            plot_abr_log()
         return final_reward
 
     def test(self, trace: AbrTrace, video_size_file_dir: str, save_dir: str):

@@ -13,7 +13,7 @@ from simulator.abr_simulator.constants import (
         A_DIM, DEFAULT_QUALITY, M_IN_K, MILLISECONDS_IN_SECOND,
         VIDEO_BIT_RATE, VIDEO_CHUNK_LEN, REBUF_PENALTY, SMOOTH_PENALTY,
         BUFFER_NORM_FACTOR, TOTAL_VIDEO_CHUNK)
-# from simulator.abr_simulator.utils import linear_reward
+from simulator.abr_simulator.utils import plot_abr_log  # linear_reward
 
 
 S_LEN = 8
@@ -111,8 +111,9 @@ def calculate_jump_action_combo(br):
 class RobustMPC(object):
     abr_name = "mpc"
 
-    def __init__(self, jump_action_flag: bool = False):
+    def __init__(self, jump_action_flag: bool = False, plot_flag: bool = False):
         self.jump_action_flag = jump_action_flag
+        self.plot_flag = plot_flag
         if self.jump_action_flag:
 
             self.combo_dict = {
@@ -273,4 +274,7 @@ class RobustMPC(object):
 
                 break
         abr_log.close()
+        if self.plot_flag:
+            plot_abr_log(trace, log_name, save_dir)
+
         return final_reward

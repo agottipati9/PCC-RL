@@ -62,7 +62,7 @@ class Pensieve:
     abr_name = "pensieve"
 
     def __init__(self, model_path: str = "", s_info: int = 6, s_len: int = 8,
-                 a_dim: int = 6, plog_flag: bool = False):
+                 a_dim: int = 6, plot_flag: bool = False):
         """Penseive
         Input state matrix shape: [s_info, s_len]
 

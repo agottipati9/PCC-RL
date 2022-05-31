@@ -225,7 +225,7 @@ class Pensieve:
                 break
         abr_log.close()
         if self.plot_flag:
-            plot_abr_log()
+            plot_abr_log(trace, log_name, save_dir)
         return final_reward
 
     def test(self, trace: AbrTrace, video_size_file_dir: str, save_dir: str):

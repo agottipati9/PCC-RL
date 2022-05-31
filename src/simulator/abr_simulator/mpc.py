@@ -38,11 +38,14 @@ def get_chunk_size(quality, index, size_video_array):
 
 @jit(nopython=True)
 def calculate_rebuffer(size_video_array, future_chunk_length, buffer_size,
-                       bit_rate, last_index, future_bandwidth, bitrate_options):
+                       bit_rate, last_index, future_bandwidth, bitrate_options,
+                       jump_action_combos=None):
     max_reward = -100000000
     start_buffer = buffer_size
 
-    for full_combo in CHUNK_COMBO_OPTIONS:
+    action_combos = CHUNK_COMBO_OPTIONS if jump_action_combos is None else jump_action_combos
+
+    for full_combo in action_combos:
         combo = full_combo[0:future_chunk_length]
         # calculate total rebuffer time for this combination (start with start_buffer and subtract
         # each download time and add 2 seconds in that order)
@@ -249,10 +252,11 @@ class RobustMPC(object):
             if self.jump_action_flag:
                 action_combos = self.combo_dict[str(bit_rate)]
             else:
-                action_combos = np.array(VIDEO_BIT_RATE)
+                action_combos =  None
 
             bit_rate = calculate_rebuffer(size_video_array, future_chunk_length, buffer_size, bit_rate,
-                                          last_index, future_bandwidth, action_combos)
+                                          last_index, future_bandwidth, np.array(VIDEO_BIT_RATE),
+                                          jump_action_combos=action_combos)
 
             s_batch.append(state)
 

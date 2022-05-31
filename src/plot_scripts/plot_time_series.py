@@ -1,7 +1,7 @@
 import argparse
 import csv
 import os
-from typing import Union
+from typing import Optional
 
 import matplotlib
 matplotlib.use('Agg')
@@ -29,7 +29,7 @@ def parse_args():
     return args
 
 
-def plot(trace: Union[Trace, None], log_file: str, save_dir: str, cc: str):
+def plot(trace: Optional[Trace], log_file: str, save_dir: str, cc: str):
     df = pd.read_csv(log_file)
     assert isinstance(df, pd.DataFrame)
     fig, axes = plt.subplots(6, 1, figsize=(12, 10))

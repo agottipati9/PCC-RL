@@ -1,7 +1,7 @@
 import argparse
 import csv
 import os
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Tuple, Optional
 
 import matplotlib
 matplotlib.use('Agg')
@@ -232,7 +232,7 @@ class PacketLog():
         return self.avg_latency
 
 
-def plot(trace: Union[Trace, None], throughput_ts: List[float],
+def plot(trace: Optional[Trace], throughput_ts: List[float],
          throughput: List[float], sending_rate_ts: List[float],
          sending_rate: List[float], avg_tput: float, avg_sending_rate: float,
          rtt_ts: List[float], rtt: List[float], avg_lat: float, pkt_loss: float,

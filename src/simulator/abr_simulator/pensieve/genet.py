@@ -33,6 +33,8 @@ def parse_args():
                         help="Path to configuration file.")
     parser.add_argument("--bo-rounds", type=int, default=20,
                         help="Rounds of BO.")
+    parser.add_argument("--nagent", type=int, default=10,
+                        help="Number of agenets used in training.")
     parser.add_argument('--seed', type=int, default=42, help='seed')
     parser.add_argument('--heuristic', type=str, default="mpc",
                         choices=('mpc', 'bba'), help='ABR rule based method.')
@@ -231,12 +233,14 @@ class Genet:
                     "--save-dir={save_dir} " \
                     "--exp-name={exp_name} " \
                     "--model-path={model_path} " \
+                    "--nagent={nagent} " \
                     "--video-size-file-dir={video_size_file_dir} ".format(
                         total_epoch=epoch_per_round,
                         seed=self.seed,
                         save_dir=training_save_dir,
                         exp_name='bo_{}'.format(i),
                         model_path=self.model_path,
+                        nagent=self.nagent,
                         video_size_file_dir=self.video_size_file_dir)
 
             if self.jump_action:
@@ -266,7 +270,8 @@ def main():
 
     genet = Genet(args.config_file, args.save_dir, black_box_function,
                   heuristic, args.model_path, args.video_size_file_dir,
-                  seed=args.seed, jump_action=args.jump_action)
+                  nagent=args.nagent, seed=args.seed,
+                  jump_action=args.jump_action)
 
     genet.train(args.bo_rounds, epoch_per_round=5000, val_dir=args.val_trace_dir)
 

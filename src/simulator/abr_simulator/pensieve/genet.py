@@ -263,7 +263,7 @@ def main():
     set_seed(args.seed)
     if args.heuristic == 'mpc':
         heuristic = RobustMPC()
-    elif args.heuristic == 'mpc':
+    elif args.heuristic == 'bba':
         heuristic = BBA()
     else:
         raise NotImplementedError

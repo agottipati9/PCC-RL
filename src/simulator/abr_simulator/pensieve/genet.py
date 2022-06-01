@@ -266,7 +266,7 @@ def main():
 
     genet = Genet(args.config_file, args.save_dir, black_box_function,
                   heuristic, args.model_path, args.video_size_file_dir,
-                  jump_action=args.jump_action)
+                  seed=args.seed, jump_action=args.jump_action)
 
     genet.train(args.bo_rounds, epoch_per_round=5000, val_dir=args.val_trace_dir)
 

@@ -253,8 +253,10 @@ class Genet:
                         val_dir=val_dir)
             print(cmd)
             subprocess.run(cmd.split(' '))
-            self.model_path = latest_actor_from(
+            tmp_model_path = latest_actor_from(
                 os.path.join(training_save_dir, "model_saved"))
+            if tmp_model_path:
+                self.model_path = tmp_model_path
             print('current model', self.model_path)
 
 

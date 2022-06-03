@@ -192,6 +192,8 @@ def latest_actor_from(path):
     mtime = lambda f: os.stat( os.path.join( path ,f ) ).st_mtime
     files = list( sorted( os.listdir( path ) ,key=mtime ) )
     actors = [a for a in files if "nn_model_ep_" in a]
+    if not actors:
+        return None
     actor_path = str( path + '/' + actors[-1] )
     return os.path.splitext( actor_path )[0]
 

@@ -245,7 +245,7 @@ class Pensieve:
             #     learning_rate=CRITIC_LR_RATE,
             #     bitrate_dim=BITRATE_DIM)
             sess.run(tf.compat.v1.global_variables_initializer())
-            saver = tf.compat.v1.train.Saver(max_to_keep=15)
+            saver = tf.compat.v1.train.Saver()
             if self.model_path:
                 saver.restore(sess, self.model_path)
             return self._test(actor, trace, video_size_file_dir, save_dir)
@@ -263,7 +263,7 @@ class Pensieve:
             )
 
             sess.run(tf.compat.v1.global_variables_initializer())
-            saver = tf.compat.v1.train.Saver(max_to_keep=15)
+            saver = tf.compat.v1.train.Saver()
             if self.model_path:
                 saver.restore(sess, self.model_path)
             for trace, save_dir in zip(traces, save_dirs):
@@ -329,17 +329,32 @@ class Pensieve:
 
             sess.run(tf.global_variables_initializer())
             # writer = tf.summary.FileWriter(save_dir, sess.graph)  # training monitor
-            saver = tf.train.Saver(max_to_keep=15)  # save neural net parameters
+            saver = tf.train.Saver()  # save neural net parameters
 
             # restore neural net parameters
             if self.model_path:  # nn_model is the path to file
                 saver.restore(sess, self.model_path)
                 print("Model restored.")
 
+            os.makedirs(os.path.join(save_dir, "model_saved"), exist_ok=True)
+
             epoch = 0
 
             # assemble experiences from agents, compute the gradients
-            max_avg_reward = None
+
+            val_rewards = [self._test(
+                actor, trace, video_size_file_dir=video_size_file_dir,
+                save_dir=os.path.join(save_dir, "val_logs")) for trace in val_traces]
+            val_mean_reward = np.mean(val_rewards)
+            max_avg_reward = val_mean_reward
+
+            val_log_writer.writerow(
+                    [epoch, np.min(val_rewards),
+                     np.percentile(val_rewards, 5), np.mean(val_rewards),
+                     np.median(val_rewards), np.percentile(val_rewards, 95),
+                     np.max(val_rewards)])
+            val_epochs.append(epoch)
+            val_mean_rewards.append(val_mean_reward)
 
             while epoch < total_epoch:
                 start_t = time.time()
@@ -477,7 +492,7 @@ class Pensieve:
                         {'data': [curve], 'layout': layout,
                          'win': 'Pensieve_training_mean_entropy'})
 
-                    if max_avg_reward is None or (val_mean_reward > max_avg_reward):
+                    if val_mean_reward > max_avg_reward:
                         max_avg_reward = val_mean_reward
                         # Save the neural net parameters to disk.
                         save_path = saver.save(

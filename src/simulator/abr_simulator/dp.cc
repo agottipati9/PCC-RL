@@ -15,19 +15,18 @@
 #include <unordered_map>
 #include <vector>
 
-// float MILLISECONDS_IN_SECOND = 1000;
 float B_IN_MB = 1000000;
 float M_IN_K = 1000;
 float BITS_IN_BYTE = 8;
 // int RANDOM_SEED = 42;
 float VIDEO_CHUNK_LEN = 4000; // (ms), every time add this amount to buffer
-unsigned int TOTAL_VIDEO_CHUNK = 49;
+int TOTAL_VIDEO_CHUNK = 49;
 float PACKET_PAYLOAD_PORTION = 0.95;
 unsigned int LINK_RTT = 80;      // millisec
 // unsigned int PACKET_SIZE = 1500; // bytes
 float DT = 0.05;                 // time granularity
 float BUFFER_THRESH = 60;        // sec, max buffer limit
-unsigned int BITRATE_LEVELS = 6;
+int BITRATE_LEVELS = 6;
 const int VIDEO_BIT_RATE[] = {300, 750, 1200, 1850, 2850, 4300}; // Kbps
 unsigned int DEFAULT_QUALITY = 1;
 unsigned int MAX_QUALITY = 5;
@@ -35,15 +34,6 @@ unsigned int MAX_QUALITY = 5;
 float REBUF_PENALTY = 10; // 1 sec rebuffering -> 3 Mbps
 int SMOOTH_PENALTY = 1;
 float INVALID_DOWNLOAD_TIME = -1;
-// std::string COOKED_TRACE_FOLDER = "./cooked_traces/";
-// std::string OUTPUT_FILE_PATH = "./results/log_sim_dp";
-// std::string VIDEO_SIZE_FILE = "./video_size_";
-//
-// struct ALL_COOKED_TIME_BW {
-//   std::vector<std::vector<float>> all_cooked_time;
-//   std::vector<std::vector<float>> all_cooked_bw;
-//   std::vector<std::string> all_file_names;
-// };
 
 typedef struct BwTrace {
     std::vector<float> ts;
@@ -218,20 +208,14 @@ int main(int argc, char* argv[]) {
 
     load_trace_file(trace_file, bw_trace);
 
-    for (int i = 0; i < video_sizes.size(); i++) {
-        std:: cout << video_sizes[i].size();
-        for (int j = 0; j < video_sizes[i].size(); j++) {
-            std::cout << video_sizes[i][j] << ", ";
-        }
-        std::cout << std::endl;
-    }
-
     std::ofstream log_file;
+    std::string log_file_name;
     if (trace_name.size() == 0) {
-        log_file.open(save_dir + "/dp_log.csv");
+        log_file_name = save_dir + "/dp_log.csv";
     } else {
-        log_file.open(save_dir + "/dp_" + trace_name + "_log.csv");
+        log_file_name = save_dir + "/dp_" + trace_name + "_log.csv";
     }
+    log_file.open(log_file_name);
 
     // -----------------------------------------
     // step 1: quantize the time and bandwidth
@@ -342,7 +326,7 @@ int main(int argc, char* argv[]) {
     insert_or_update(last_dp_pt, 0, time_idx, buffer_idx, DEFAULT_QUALITY,
                      dp_pt);
 
-    for (unsigned int n = 1; n < TOTAL_VIDEO_CHUNK; n++) {
+    for (int n = 1; n < TOTAL_VIDEO_CHUNK; n++) {
       std::cout << n << " " << TOTAL_VIDEO_CHUNK << '\n';
       float max_reward_up_to_n = -INFINITY;
       float max_reward_remaining_after_n =
@@ -451,22 +435,27 @@ int main(int argc, char* argv[]) {
     }
 
     std::ofstream output;
-    log_file << optimal_total_reward << '\n';
 
-    log_file << TOTAL_VIDEO_CHUNK - 1 << '\t' << last_time_idx << '\t'
-             << last_buff_idx << '\t' << quan_time[last_time_idx] << '\t'
-             << quan_time[last_buff_idx] << '\t' << quan_bw[last_time_idx]
-             << '\t' << last_bit_rate << '\n';
+    log_file << TOTAL_VIDEO_CHUNK - 1 << '\t'
+             << quan_time[last_time_idx] << '\t'
+             << VIDEO_BIT_RATE[last_bit_rate]
+             << quan_time[last_buff_idx] << '\t'
+             << quan_bw[last_time_idx] << '\n';
 
     while (dp_pt.chunk_idx != 0 || dp_pt.time_idx != 0 ||
            dp_pt.buffer_idx != 0 || dp_pt.bit_rate != 0) {
-      log_file << dp_pt.chunk_idx << '\t' << dp_pt.time_idx << '\t'
-               << dp_pt.buffer_idx << '\t' << quan_time[dp_pt.time_idx] << '\t'
-               << quan_time[dp_pt.buffer_idx] << '\t' << quan_bw[dp_pt.time_idx]
-               << '\t' << dp_pt.bit_rate << '\n';
+      log_file << dp_pt.chunk_idx << quan_time[dp_pt.time_idx] << '\t'
+               << VIDEO_BIT_RATE[dp_pt.bit_rate] << '\t'
+               << quan_time[dp_pt.buffer_idx] << '\t'
+               << quan_bw[dp_pt.time_idx] << '\n';
       dp_pt = must_retrieve(last_dp_pt, dp_pt.chunk_idx, dp_pt.time_idx,
                             dp_pt.buffer_idx, dp_pt.bit_rate);
     }
-    log_file << '\n';
+    log_file << optimal_total_reward << '\n';
     log_file.close();
+    std::string tmp_log_file_name = log_file_name + ".tmp";
+    std::string cmd = "tac " + log_file_name + " > " + tmp_log_file_name;
+    system(cmd.c_str());
+    cmd = "mv " + tmp_log_file_name + " " + log_file_name;
+    system(cmd.c_str());
 } // end of main

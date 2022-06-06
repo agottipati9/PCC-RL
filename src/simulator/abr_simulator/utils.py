@@ -203,13 +203,10 @@ def plot_abr_log(trace: Optional[AbrTrace], log_file: str, save_dir: Optional[st
     log_name = os.path.splitext(os.path.basename(log_file))[0]
     df = pd.read_csv(log_file)
     assert isinstance(df, pd.DataFrame)
-    axes[0].plot(df['timestamp'], df['bitrate'], 'o-', ms=2,
+    axes[0].plot(df['timestamp'], df['bitrate'], 'o-', ms=2, drawstyle='steps-pre',
                  label='bitrate, avg {:.3f}kbps'.format(df['bitrate'].mean()))
 
     # max_ts = trace.timestamps[-1]
-    print(df['timestamp'])
-    import pdb
-    pdb.set_trace()
     max_ts = df['timestamp'].iloc[len(df['timestamp'])-1]
     if trace:
         if trace.timestamps[-1] < max_ts:

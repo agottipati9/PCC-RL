@@ -10,7 +10,7 @@ import tensorflow as tf
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 os.environ['CUDA_VISIBLE_DEVICES'] = ''
-import visdom
+# import visdom
 
 
 from simulator.abr_simulator.abr_trace import AbrTrace
@@ -245,7 +245,7 @@ class Pensieve:
             #     learning_rate=CRITIC_LR_RATE,
             #     bitrate_dim=BITRATE_DIM)
             sess.run(tf.compat.v1.global_variables_initializer())
-            saver = tf.compat.v1.train.Saver()
+            saver = tf.compat.v1.train.Saver(max_to_keep=None)
             if self.model_path:
                 saver.restore(sess, self.model_path)
             return self._test(actor, trace, video_size_file_dir, save_dir)
@@ -263,7 +263,7 @@ class Pensieve:
             )
 
             sess.run(tf.compat.v1.global_variables_initializer())
-            saver = tf.compat.v1.train.Saver()
+            saver = tf.compat.v1.train.Saver(max_to_keep=None)
             if self.model_path:
                 saver.restore(sess, self.model_path)
             for trace, save_dir in zip(traces, save_dirs):
@@ -272,12 +272,12 @@ class Pensieve:
 
     def train(self, trace_scheduler, val_traces: List[AbrTrace],
               save_dir: str, num_agents: int, total_epoch: int,
-              video_size_file_dir: str, model_save_interval: int = 100,
+              video_size_file_dir: str, model_save_interval: int = 1000,
               suffix: str = ""):
 
         # Visdom Settings
-        vis = visdom.Visdom()
-        assert vis.check_connection()
+        # vis = visdom.Visdom()
+        # assert vis.check_connection()
         plot_color = 'red'
         # Visdom Logs
         val_epochs = []
@@ -329,7 +329,7 @@ class Pensieve:
 
             sess.run(tf.global_variables_initializer())
             # writer = tf.summary.FileWriter(save_dir, sess.graph)  # training monitor
-            saver = tf.train.Saver()  # save neural net parameters
+            saver = tf.train.Saver(max_to_keep=None)  # save neural net parameters
 
             # restore neural net parameters
             if self.model_path:  # nn_model is the path to file
@@ -458,47 +458,47 @@ class Pensieve:
                     # suffix = args.start_time
                     # if args.description is not None:
                     #     suffix = args.description
-                    curve = dict(x=val_epochs, y=val_mean_rewards,
-                                 mode="markers+lines", type='custom',
-                                 marker={'color': plot_color,
-                                         'symbol': 104, 'size': "5"},
-                                 text=["one", "two", "three"], name='1st Trace')
-                    layout = dict(title="Pensieve_Val_Reward " + suffix,
-                                  xaxis={'title': 'Epoch'},
-                                  yaxis={'title': 'Mean Reward'})
-                    vis._send(
-                        {'data': [curve], 'layout': layout,
-                         'win': 'Pensieve_val_mean_reward'})
-                    curve = dict(x=val_epochs, y=average_rewards,
-                                 mode="markers+lines", type='custom',
-                                 marker={'color': plot_color,
-                                         'symbol': 104, 'size': "5"},
-                                 text=["one", "two", "three"], name='1st Trace')
-                    layout = dict(title="Pensieve_Training_Reward " + suffix,
-                                  xaxis={'title': 'Epoch'},
-                                  yaxis={'title': 'Mean Reward'})
-                    vis._send(
-                        {'data': [curve], 'layout': layout,
-                         'win': 'Pensieve_training_mean_reward'})
-                    curve = dict(x=val_epochs, y=average_entropies,
-                                 mode="markers+lines", type='custom',
-                                 marker={'color': plot_color,
-                                         'symbol': 104, 'size': "5"},
-                                 text=["one", "two", "three"], name='1st Trace')
-                    layout = dict(title="Pensieve_Training_Mean Entropy " + suffix,
-                                  xaxis={'title': 'Epoch'},
-                                  yaxis={'title': 'Mean Entropy'})
-                    vis._send(
-                        {'data': [curve], 'layout': layout,
-                         'win': 'Pensieve_training_mean_entropy'})
+                    # curve = dict(x=val_epochs, y=val_mean_rewards,
+                    #              mode="markers+lines", type='custom',
+                    #              marker={'color': plot_color,
+                    #                      'symbol': 104, 'size': "5"},
+                    #              text=["one", "two", "three"], name='1st Trace')
+                    # layout = dict(title="Pensieve_Val_Reward " + suffix,
+                    #               xaxis={'title': 'Epoch'},
+                    #               yaxis={'title': 'Mean Reward'})
+                    # vis._send(
+                    #     {'data': [curve], 'layout': layout,
+                    #      'win': 'Pensieve_val_mean_reward'})
+                    # curve = dict(x=val_epochs, y=average_rewards,
+                    #              mode="markers+lines", type='custom',
+                    #              marker={'color': plot_color,
+                    #                      'symbol': 104, 'size': "5"},
+                    #              text=["one", "two", "three"], name='1st Trace')
+                    # layout = dict(title="Pensieve_Training_Reward " + suffix,
+                    #               xaxis={'title': 'Epoch'},
+                    #               yaxis={'title': 'Mean Reward'})
+                    # vis._send(
+                    #     {'data': [curve], 'layout': layout,
+                    #      'win': 'Pensieve_training_mean_reward'})
+                    # curve = dict(x=val_epochs, y=average_entropies,
+                    #              mode="markers+lines", type='custom',
+                    #              marker={'color': plot_color,
+                    #                      'symbol': 104, 'size': "5"},
+                    #              text=["one", "two", "three"], name='1st Trace')
+                    # layout = dict(title="Pensieve_Training_Mean Entropy " + suffix,
+                    #               xaxis={'title': 'Epoch'},
+                    #               yaxis={'title': 'Mean Entropy'})
+                    # vis._send(
+                    #     {'data': [curve], 'layout': layout,
+                    #      'win': 'Pensieve_training_mean_entropy'})
 
-                    if val_mean_reward > max_avg_reward:
-                        max_avg_reward = val_mean_reward
-                        # Save the neural net parameters to disk.
-                        save_path = saver.save(
-                            sess,
-                            os.path.join(save_dir, "model_saved", f"nn_model_ep_{epoch}.ckpt"))
-                        logging.info("Model saved in file: " + save_path)
+                    # if val_mean_reward > max_avg_reward:
+                    max_avg_reward = val_mean_reward
+                    # Save the neural net parameters to disk.
+                    save_path = saver.save(
+                        sess,
+                        os.path.join(save_dir, "model_saved", f"nn_model_ep_{epoch}.ckpt"))
+                    logging.info("Model saved in file: " + save_path)
 
                 end_t = time.time()
                 # print(f'epoch{epoch-1}: {end_t - start_t}s')
@@ -663,6 +663,7 @@ def agent(train_seq_len: int, s_info: int, s_len: int, a_dim: int,
                 s_batch.append(np.zeros((s_info, s_len)))
                 a_batch.append(action_vec)
                 epoch += 1
+                net_env.trace_scheduler.set_epoch(epoch)
 
             else:
                 s_batch.append(state)

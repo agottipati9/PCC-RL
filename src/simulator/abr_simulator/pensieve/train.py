@@ -63,12 +63,12 @@ def parse_args():
     #     action="store_true",
     #     help="specify to enable validation.",
     # )
-    # parser.add_argument(
-    #     "--val-freq",
-    #     type=int,
-    #     default=7200,
-    #     help="specify to enable validation.",
-    # )
+    parser.add_argument(
+        "--val-freq",
+        type=int,
+        default=1000,
+        help="specify to enable validation.",
+    )
     subparsers = parser.add_subparsers(dest="curriculum", help="CL parsers.")
     udr_parser = subparsers.add_parser("udr", help="udr")
     udr_parser.add_argument(
@@ -104,27 +104,39 @@ def parse_args():
     #     help="dataset name",
     # )
     cl1_parser = subparsers.add_parser("cl1", help="cl1")
-    # cl1_parser.add_argument(
-    #     "--config-files",
-    #     type=str,
-    #     nargs="+",
-    #     help="A list of randomization config files.",
-    # )
+    cl1_parser.add_argument(
+        "--config-files",
+        type=str,
+        nargs="+",
+        help="A list of randomization config files.",
+    )
+    cl1_parser.add_argument(
+        "--val-trace-dir",
+        type=str,
+        default="",
+        help="A directory contains the validation trace files.",
+    )
     cl2_parser = subparsers.add_parser("cl2", help="cl2")
-    # cl2_parser.add_argument(
-    #     "--baseline",
-    #     type=str,
-    #     required=True,
-    #     choices=("bbr", "bbr_old", "cubic"),
-    #     help="Baseline used to sort environments.",
-    # )
-    # cl2_parser.add_argument(
-    #     "--config-file",
-    #     type=str,
-    #     default="",
-    #     help="A json file which contains a list of randomization ranges with "
-    #     "their probabilites.",
-    # )
+    cl2_parser.add_argument(
+        "--baseline",
+        type=str,
+        required=True,
+        choices=("mpc", "bba"),
+        help="Baseline used to sort environments.",
+    )
+    cl2_parser.add_argument(
+        "--config-file",
+        type=str,
+        default="",
+        help="A json file which contains a list of randomization ranges with "
+        "their probabilites.",
+    )
+    cl2_parser.add_argument(
+        "--val-trace-dir",
+        type=str,
+        default="",
+        help="A directory contains the validation trace files.",
+    )
 
     return parser.parse_args()
 
@@ -168,15 +180,14 @@ def main():
             percent=args.real_trace_prob,
         )
     elif args.curriculum == "cl1":
-        # config_file = args.config_files[0]
-        # train_scheduler = CL1TrainScheduler(args.config_files, aurora)
-        raise NotImplementedError
+        train_scheduler = CL1TrainScheduler(args.config_files)
+        if args.val_trace_dir:
+            all_time, all_bw, all_file_names = load_traces(args.val_trace_dir)
+            val_traces = [AbrTrace(t, bw, link_rtt=80, buffer_thresh=60, name=name)
+                               for t, bw, name in zip(all_time, all_bw, all_file_names)]
     elif args.curriculum == "cl2":
-        # config_file = args.config_file
-        # train_scheduler = CL2TrainScheduler(
-        #     config_file, aurora, args.baseline
-        # )
-        raise NotImplementedError
+        config_file = args.config_file
+        train_scheduler = CL2TrainScheduler(config_file, args.baseline)
     else:
         raise NotImplementedError
 
@@ -186,7 +197,8 @@ def main():
         args.save_dir,
         args.nagent,
         args.total_epoch,
-        args.video_size_file_dir)
+        args.video_size_file_dir,
+        args.val_freq)
 
 
 if __name__ == "__main__":

@@ -192,7 +192,8 @@ class Genet:
             self.pbounds['max_bw'][0] = np.log(self.pbounds['max_bw'][0])
             self.pbounds['max_bw'][1] = np.log(self.pbounds['max_bw'][1])
 
-    def train(self, rounds: int, epoch_per_round: int, val_dir: str):
+    def train(self, rounds: int, epoch_per_round: int, val_dir: str,
+              model_save_interval: int = 100):
         """
         """
         # BO guided training flow:
@@ -234,14 +235,16 @@ class Genet:
                     "--exp-name={exp_name} " \
                     "--model-path={model_path} " \
                     "--nagent={nagent} " \
-                    "--video-size-file-dir={video_size_file_dir} ".format(
+                    "--video-size-file-dir={video_size_file_dir} "\
+                    "--val-freq={val_freq} ".format(
                         total_epoch=epoch_per_round,
                         seed=self.seed,
                         save_dir=training_save_dir,
                         exp_name='bo_{}'.format(i),
                         model_path=self.model_path,
                         nagent=self.nagent,
-                        video_size_file_dir=self.video_size_file_dir)
+                        video_size_file_dir=self.video_size_file_dir,
+                        val_freq=model_save_interval)
 
             if self.jump_action:
                 cmd += "--jump-action "

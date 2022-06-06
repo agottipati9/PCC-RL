@@ -17,11 +17,11 @@
 
 // float MILLISECONDS_IN_SECOND = 1000;
 float B_IN_MB = 1000000;
-// float M_IN_K = 1000;
+float M_IN_K = 1000;
 float BITS_IN_BYTE = 8;
 // int RANDOM_SEED = 42;
-float VIDEO_CHUNCK_LEN = 4000; // (ms), every time add this amount to buffer
-unsigned int TOTAL_VIDEO_CHUNCK = 49;
+float VIDEO_CHUNK_LEN = 4000; // (ms), every time add this amount to buffer
+unsigned int TOTAL_VIDEO_CHUNK = 49;
 float PACKET_PAYLOAD_PORTION = 0.95;
 unsigned int LINK_RTT = 80;      // millisec
 // unsigned int PACKET_SIZE = 1500; // bytes
@@ -34,7 +34,7 @@ unsigned int MAX_QUALITY = 5;
 // float REBUF_PENALTY = 4.3;  // 1 sec rebuffering -> 3 Mbps
 float REBUF_PENALTY = 10; // 1 sec rebuffering -> 3 Mbps
 int SMOOTH_PENALTY = 1;
-// float INVALID_DOWNLOAD_TIME = -1;
+float INVALID_DOWNLOAD_TIME = -1;
 // std::string COOKED_TRACE_FOLDER = "./cooked_traces/";
 // std::string OUTPUT_FILE_PATH = "./results/log_sim_dp";
 // std::string VIDEO_SIZE_FILE = "./video_size_";
@@ -200,14 +200,17 @@ bool found_in(std::unordered_map<uint64_t, T> &dict_map, unsigned int chunk_idx,
 }
 
 int main(int argc, char* argv[]) {
-    if (argc != 4) {
+    if (argc < 4 || argc > 5) {
         std::cout << "Usage: dp video_size_file trace_file save_dir";
         return 1;
     }
     std::string trace_file(argv[1]);
     std::string save_dir(argv[2]);
     std::string video_size_file(argv[3]);
-
+    std::string trace_name("");
+    if (argc == 5) {
+        std::string trace_name(argv[4]);
+    }
     std::vector<std::vector<unsigned int>> video_sizes = get_video_sizes(
         video_size_file);
 
@@ -224,9 +227,11 @@ int main(int argc, char* argv[]) {
     }
 
     std::ofstream log_file;
-
-    log_file.open(OUTPUT_FILE_PATH + "_" +
-                  all_cooked_time_bw.all_file_names[trace_idx]);
+    if (trace_name.size() == 0) {
+        log_file.open(save_dir + "/dp_log.csv");
+    } else {
+        log_file.open(save_dir + "/dp_" + trace_name + "_log.csv");
+    }
 
     // -----------------------------------------
     // step 1: quantize the time and bandwidth
@@ -265,7 +270,7 @@ int main(int argc, char* argv[]) {
         max_video_contents /
         (total_bw * B_IN_MB * PACKET_PAYLOAD_PORTION / BITS_IN_BYTE);
 
-    unsigned int t_max = bw_trace.bw[bw_trace.bw.size() - 1] * t_portion;
+    unsigned int t_max = bw_trace.ts[bw_trace.ts.size() - 1] * t_portion;
 
     unsigned int t_max_idx = ceil(t_max / DT);
     unsigned int b_max_idx = t_max_idx;
@@ -296,10 +301,10 @@ int main(int argc, char* argv[]) {
     // -----------------------------------------------------------
 
     std::vector<std::vector<std::vector<float>>> all_download_time(
-        TOTAL_VIDEO_CHUNCK, std::vector<std::vector<float>>(
+        TOTAL_VIDEO_CHUNK, std::vector<std::vector<float>>(
                                 t_max_idx, std::vector<float>(BITRATE_LEVELS)));
 
-    for (int i = 0; i < TOTAL_VIDEO_CHUNCK; i++) {
+    for (int i = 0; i < TOTAL_VIDEO_CHUNK; i++) {
         for (int j = 0; j < t_max_idx; j++) {
             for (int k = 0; k < BITRATE_LEVELS; k++) {
                 // means not visited before
@@ -315,7 +320,7 @@ int main(int argc, char* argv[]) {
     // step 4: dynamic programming
     // -----------------------------
     std::vector<std::unordered_map<uint64_t, float>> total_reward(
-        TOTAL_VIDEO_CHUNCK, std::unordered_map<uint64_t, float>());
+        TOTAL_VIDEO_CHUNK, std::unordered_map<uint64_t, float>());
 
     std::unordered_map<uint64_t, DP_PT> last_dp_pt;
 
@@ -325,7 +330,7 @@ int main(int argc, char* argv[]) {
 
     float chunk_finish_time = download_time + LINK_RTT / M_IN_K;
     unsigned int time_idx = floor(chunk_finish_time / DT);
-    unsigned int buffer_idx = int(VIDEO_CHUNCK_LEN / M_IN_K / DT);
+    unsigned int buffer_idx = int(VIDEO_CHUNK_LEN / M_IN_K / DT);
 
     float reward = VIDEO_BIT_RATE[DEFAULT_QUALITY] / M_IN_K -
                    REBUF_PENALTY * chunk_finish_time;
@@ -337,11 +342,11 @@ int main(int argc, char* argv[]) {
     insert_or_update(last_dp_pt, 0, time_idx, buffer_idx, DEFAULT_QUALITY,
                      dp_pt);
 
-    for (unsigned int n = 1; n < TOTAL_VIDEO_CHUNCK; n++) {
-      std::cout << n << " " << TOTAL_VIDEO_CHUNCK << '\n';
+    for (unsigned int n = 1; n < TOTAL_VIDEO_CHUNK; n++) {
+      std::cout << n << " " << TOTAL_VIDEO_CHUNK << '\n';
       float max_reward_up_to_n = -INFINITY;
       float max_reward_remaining_after_n =
-          (TOTAL_VIDEO_CHUNCK - n - 1) * VIDEO_BIT_RATE[MAX_QUALITY] / M_IN_K;
+          (TOTAL_VIDEO_CHUNK - n - 1) * VIDEO_BIT_RATE[MAX_QUALITY] / M_IN_K;
 
       for (auto it = total_reward[n - 1].begin();
            it != total_reward[n - 1].end(); it++) {
@@ -371,7 +376,7 @@ int main(int argc, char* argv[]) {
           if (buffer_size < 0)
             buffer_size = 0;
 
-          buffer_size += VIDEO_CHUNCK_LEN / M_IN_K;
+          buffer_size += VIDEO_CHUNK_LEN / M_IN_K;
 
           float drain_buffer_time = 0;
           if (buffer_size > BUFFER_THRESH) {
@@ -406,12 +411,12 @@ int main(int argc, char* argv[]) {
     }
 
     unsigned int total_keys = 0;
-    for (int n = 0; n < TOTAL_VIDEO_CHUNCK; n++)
+    for (int n = 0; n < TOTAL_VIDEO_CHUNK; n++)
       total_keys += total_reward[n].size();
 
     std::cout << "total keys = " << total_keys << std::endl;
     std::cout << "max keys = "
-              << TOTAL_VIDEO_CHUNCK * t_max_idx * b_max_idx * BITRATE_LEVELS
+              << TOTAL_VIDEO_CHUNK * t_max_idx * b_max_idx * BITRATE_LEVELS
               << std::endl;
 
     // ---------------------------------
@@ -426,8 +431,8 @@ int main(int argc, char* argv[]) {
     unsigned last_buff_idx = 0;
     unsigned last_bit_rate = 0;
 
-    for (auto it = total_reward[TOTAL_VIDEO_CHUNCK - 1].begin();
-         it != total_reward[TOTAL_VIDEO_CHUNCK - 1].end(); it++) {
+    for (auto it = total_reward[TOTAL_VIDEO_CHUNK - 1].begin();
+         it != total_reward[TOTAL_VIDEO_CHUNK - 1].end(); it++) {
       // extract elements from key
       uint64_t key = it->first;
       uint64_t mask = 65536 - 1;
@@ -437,7 +442,7 @@ int main(int argc, char* argv[]) {
       float tmp_total_reward = it->second;
       if (tmp_total_reward > optimal_total_reward) {
         optimal_total_reward = tmp_total_reward;
-        dp_pt = must_retrieve(last_dp_pt, TOTAL_VIDEO_CHUNCK - 1, t, b, m);
+        dp_pt = must_retrieve(last_dp_pt, TOTAL_VIDEO_CHUNK - 1, t, b, m);
 
         last_time_idx = t;
         last_buff_idx = b;
@@ -448,7 +453,7 @@ int main(int argc, char* argv[]) {
     std::ofstream output;
     log_file << optimal_total_reward << '\n';
 
-    log_file << TOTAL_VIDEO_CHUNCK - 1 << '\t' << last_time_idx << '\t'
+    log_file << TOTAL_VIDEO_CHUNK - 1 << '\t' << last_time_idx << '\t'
              << last_buff_idx << '\t' << quan_time[last_time_idx] << '\t'
              << quan_time[last_buff_idx] << '\t' << quan_bw[last_time_idx]
              << '\t' << last_bit_rate << '\n';

@@ -1,5 +1,5 @@
-all: dp
-	g++ -std=c++11 -O4 dp.cc
+all:
+	g++ -std=c++11 -g dp.cc -o dp
 clean:
 	rm dp
 

@@ -6,7 +6,6 @@ from simulator.network_simulator.constants import BITS_PER_BYTE, BYTES_PER_PACKE
 from simulator.network_simulator.packet import Packet
 from simulator.network_simulator.link import Link
 from simulator.network_simulator.sender import SenderType
-from simulator.network_simulator.grouper import Grouper
 
 USE_LATENCY_NOISE = False
 # USE_LATENCY_NOISE = True
@@ -21,7 +20,6 @@ class Network:
 
     def __init__(self, senders: List[SenderType], links: List[Link],
                  record_pkt_log: bool = False):
-        self.grouper = None
         self.q = []
         self.cur_time = 0.0
         self.senders = senders
@@ -66,9 +64,6 @@ class Network:
         while True:
             pkt = self.q[0]
             # pkt.debug_print()
-            # if pkt.pkt_id == 172 and pkt.event_type == EVENT_TYPE_ACK:
-            #     import pdb
-            #     pdb.set_trace()
             # use got_data here to make sure aurora receives at least a pkt ack
             # in MI at the beginning of the connection. got_data does not
             # affect other congestion controls
@@ -117,12 +112,7 @@ class Network:
                                  self.links[0].get_bandwidth(self.cur_time) * BYTES_PER_PACKET * BITS_PER_BYTE,
                                  sender.cwnd, sender.rto])
                     else:
-                        # sender.debug_print()
-                        # pkt.debug_print()
                         sender.on_packet_acked(pkt)
-                        # debug_print('Ack packet at {}'.format(self.cur_time))
-                        # log packet acked
-                        # sender.schedule_send(on_ack=True)
                         if self.record_pkt_log:
                             self.pkt_log.append(
                                 [self.cur_time, pkt.pkt_id, 'acked',
@@ -153,10 +143,7 @@ class Network:
                     #     noise = abs(random.uniform(0.0, 200) / 1000)
                     #     pkt.add_propagation_delay(noise)
                     pkt.next_hop += 1
-                    if self.grouper:
-                        push_new_event = self.grouper.group(pkt)
-                    else:
-                        push_new_event = True
+                    push_new_event = True
             elif pkt.event_type == EVENT_TYPE_SEND:  # in datalink
                 sender = pkt.sender
                 if pkt.next_hop == 0:
@@ -199,9 +186,6 @@ class Network:
                 pkt.next_hop += 1
                 # if not pkt.dropped:
                 #     sender.queue_delay_samples.append(new_event_queue_delay)
-            else:
-                if self.grouper:
-                    self.grouper.update(self.cur_time)
 
             if push_new_event:
                 heapq.heappush(self.q, pkt)

@@ -9,7 +9,7 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     sudo apt-get update
 
     echo "Install dependencies for stable-baselines2..."
-    sudo apt-get install cmake libopenmpi-dev python3-dev zlib1g-dev
+    sudo apt-get install -y cmake libopenmpi-dev python3-dev zlib1g-dev
 elif [[ "$OSTYPE" == "darwin"* ]]; then
     # Mac OSX
     echo "Mac OSX, not supported!"

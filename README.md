@@ -2,6 +2,15 @@
 
 ## Installation
 
+### Operating system information
+Simulation and training experiments were done in a Ubuntu server with
+- **Kernal version**: #184-Ubuntu SMP Thu Mar 24 17:48:36 UTC 2022
+- **CPU INFO**:
+    - Architecture:        x86_64
+    - CPU(s):              32
+    - Model name:          Intel(R) Xeon(R) Silver 4110 CPU @ 2.10GHz
+
+
 ### Download the source code
 
 ```bash
@@ -11,19 +20,19 @@ git clone git@github.com:zxxia/PCC-RL.git
 ### Set up python virtual environment
 - Python3 Virtual environment is highly recommended. Select one of the
   following to set up a python3 virtual environment. 
-  - [venv](https://docs.python.org/3.7/library/venv.html)
+  - [venv](https://docs.python.org/3.7/library/venv.html) only
   ```bash
   python3 -m venv genet
   echo "[absolute path]/PCC-RL/src" > genet/lib/[python version]/genet.pth
   source genet/bin/activate
   ```
-  - [virtualenv](https://virtualenv.pypa.io/en/latest/)
+  - [virtualenv](https://virtualenv.pypa.io/en/latest/) only
   ```bash
   virtualenv -p python3 genet
   echo "[absolute path]/PCC-RL/src" > genet/lib/[python version]/genet.pth
   source genet/bin/activate
   ```
-  - [virtualenv](https://virtualenv.pypa.io/en/latest/) and [virtualenvwrapper](https://virtualenvwrapper.readthedocs.io/en/latest/),
+  - [virtualenv](https://virtualenv.pypa.io/en/latest/) and [virtualenvwrapper](https://virtualenvwrapper.readthedocs.io/en/latest/)
   ```bash
   mkvirtualenv -a PCC-RL/ -p python3 genet
   workon genet

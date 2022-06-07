@@ -2,6 +2,7 @@ import argparse
 import copy
 import csv
 import glob
+import itertools
 import json
 import os
 import subprocess
@@ -258,6 +259,59 @@ class Genet:
         #     event=Events.OPTIMIZATION_STEP,
         #     subscriber=my_observer,
         #     callback=None)
+
+    def grid_search(self,
+                    bandwidth_upper_bound_list: List[float],
+                    delay_list: List[float],
+                    queue_list: List[float],
+                    loss_list: List[float],
+                    T_s_list: List[float]):
+        training_save_dir = os.path.join(self.save_dir,  "grid_search")
+        os.makedirs(training_save_dir, exist_ok=True)
+        search_log = open(os.path.join(self.save_dir, "search_logs.json"), 'w')
+        for bw_upper_bound, delay, queue, loss, T_s in itertools.product(
+            bandwidth_upper_bound_list, delay_list, queue_list, loss_list,
+            T_s_list):
+            if loss == 0:
+                log_loss = -4
+            else:
+                log_loss = np.log10(loss)
+            reward_gap = self.black_box_function(
+                np.log10(0.1), np.log10(bw_upper_bound), delay, queue, log_loss, T_s, 0,
+                heuristic=self.heuristic, model_path=self.model_path,
+                save_dir=os.path.join(training_save_dir, 'grid_search_traces'))
+            dict2write = {"target": reward_gap,
+                          "params": {"T_s": T_s, "bandwidth_lower_bound": 0.1,
+                                     "bandwidth_upper_bound": bw_upper_bound,
+                                     "delay": delay, "queue": queue,
+                                     "loss": loss}}
+            search_log.write(str(dict2write) + "\n")
+        search_log.close()
+
+    def search(self, ):
+        training_save_dir = os.path.join(self.save_dir,  "search")
+        os.makedirs(training_save_dir, exist_ok=True)
+        optimizer = BayesianOptimization(
+            f=lambda bandwidth_lower_bound, bandwidth_upper_bound, delay,
+            queue, loss, T_s, delay_noise: self.black_box_function(
+                bandwidth_lower_bound, bandwidth_upper_bound, delay, queue,
+                loss, T_s, delay_noise, heuristic=self.heuristic,
+                model_path=self.model_path,
+                save_dir=os.path.join(training_save_dir, 'traces')),
+            pbounds=self.pbounds, random_state=self.seed)
+        logger = JSONLogger(path=os.path.join(self.save_dir, "search_logs.json"))
+        optimizer.subscribe(Events.OPTIMIZATION_STEP, logger)
+        optimizer.maximize(init_points=self.n_init_pts, n_iter=self.n_iter,
+                           kappa=20, xi=0.1)
+        best_param = optimizer.max
+        # print(best_param)
+        self.rand_ranges.add_ranges([best_param['params']])
+        # ranges_to_add = [res['params'] for res in optimizer.res if res['target'] > 0]
+        # print(len(ranges_to_add))
+        # self.rand_ranges.add_ranges(ranges_to_add)
+        self.cur_config_file = os.path.join(self.save_dir, "search.json")
+        self.rand_ranges.dump(self.cur_config_file)
+        to_csv(self.cur_config_file)
 
     def train(self, rounds: int, bo_steps: int):
         """Genet trains rl_method.

@@ -118,3 +118,5 @@ src/simulator/tests
 *.jpg
 *.zip
 __MACOSX
+.ccls-cache
+.ccls

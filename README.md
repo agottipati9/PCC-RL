@@ -1,47 +1,49 @@
-# GENET
+# GENET: Automatic Curriculum Generation for Learning Adaptation in Networking
 
-Reinforcement learning resources for the Performance-oriented Congestion Control
-project.
+## Installation
 
-## Installation and Setup
+### Download the source code
 
-- Run the following command to clone the repo.
+```bash
+git clone git@github.com:zxxia/PCC-RL.git
+```
 
-    ```bash
-    git clone git@github.com:zxxia/PCC-RL.git
-    ```
+### Set up python virtual environment
+- Python3 Virtual environment is highly recommended. Select one of the
+  following to set up a python3 virtual environment. 
+  - [venv](https://docs.python.org/3.7/library/venv.html)
+  ```bash
+  python3 -m venv genet
+  echo "[absolute path]/PCC-RL/src" > genet/lib/[python version]/genet.pth
+  source genet/bin/activate
+  ```
+  - [virtualenv](https://virtualenv.pypa.io/en/latest/)
+  ```bash
+  virtualenv -p python3 genet
+  echo "[absolute path]/PCC-RL/src" > genet/lib/[python version]/genet.pth
+  source genet/bin/activate
+  ```
+  - [virtualenv](https://virtualenv.pypa.io/en/latest/) and [virtualenvwrapper](https://virtualenvwrapper.readthedocs.io/en/latest/),
+  ```bash
+  mkvirtualenv -a PCC-RL/ -p python3 genet
+  workon genet
+  add2virtualenv src/
+  ```
+- Now the virtual environment is activated.
 
-- Virtual environment is highly recommended. Please set up one in python3. FYI,
-  [venv](https://docs.python.org/3.7/library/venv.html) and
-  [conda](https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html).
-  Other virtual environment related tools are like
-  [virtualenvwrapper](https://virtualenvwrapper.readthedocs.io/en/latest/),
-  [pyenv](https://github.com/pyenv/pyenv) and, etc.
-- Activate the virtual environment.
-- Run the following commands to install the required packges.
+## Installation
 
-  - For Ubuntu
+```bash
+cd PCC-RL
+bash install.sh
+```
 
-    ```bash
-    cd PCC-RL
-    sudo apt-get update && sudo apt-get install cmake libopenmpi-dev python3-dev zlib1g-dev
-    pip install -r requirements.txt
-    ```
-
-  - For MacOS
-
-    ```bash
-    cd PCC-RL
-    brew install cmake openmpi
-    pip install -r requirements.txt
-    ```
-
-- Add `src` to `$PYTHONPATH` by running
-
-    ```bash
-    cd PCC-RL
-    export PYTHONPATH="${PYTHONPATH}:$(pwd)/src"
-    ```
+<!-- - Add `src` to `$PYTHONPATH` by running -->
+<!--  -->
+<!--     ```bash -->
+<!--     cd PCC-RL -->
+<!--     export PYTHONPATH="${PYTHONPATH}:$(pwd)/src" -->
+<!--     ``` -->
 
 ## Traces
 

@@ -184,7 +184,7 @@ def main():
         config_file,
         args.total_timesteps,
         train_scheduler,
-        tb_log_name=args.exp_name,
+        tb_log_name=args.exp_name + "_seed_{}".format(args.seed),
         validation_traces=val_traces,
     )
 

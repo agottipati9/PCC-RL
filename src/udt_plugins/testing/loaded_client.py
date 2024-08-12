@@ -48,8 +48,6 @@ def parse_args():
     parser.add_argument("--history-len", type=int, default=10,
                         help="Feature history length.")
     parser.add_argument("--input-features", type=str,
-                        # default=["sent latency inflation", "latency ratio",
-                        #          "send ratio"],
                         default=["sent latency inflation", "latency ratio",
                                  "recv ratio"], nargs=3, help="Feature type.")
 

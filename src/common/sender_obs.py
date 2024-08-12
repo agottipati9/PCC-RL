@@ -128,6 +128,40 @@ def get_max_obs_vector(feature_names):
         result.append(feature.max_val)
     return np.array(result)
 
+def _mi_metric_bytes_acked(mi):
+    return mi.bytes_acked
+
+def _mi_metric_bytes_sent(mi):
+    return mi.bytes_sent
+
+def _mi_metric_bytes_lost(mi):
+    return mi.bytes_lost
+
+def _mi_metric_send_start(mi):
+    return mi.send_start
+
+def _mi_metric_send_end(mi):
+    return mi.send_end
+
+def _mi_metric_recv_start(mi):
+    return mi.recv_start
+
+def _mi_metric_recv_end(mi):
+    return mi.recv_end
+
+def _mi_metric_packet_size(mi):
+    return mi.packet_size
+
+def _mi_metric_rtt_samples(mi):
+    if len(mi.rtt_samples) > 0:
+        return np.mean(mi.rtt_samples)
+    return 0.0
+    
+def _mi_metric_queue_delay_samples(mi):
+    if len(mi.queue_delay_samples) > 0:
+        return np.mean(mi.queue_delay_samples)
+    return 0.0
+
 def _mi_metric_recv_rate(mi):
     dur = mi.get("recv dur")
     if dur > 0.0:
@@ -246,5 +280,14 @@ SENDER_MI_METRICS = [
     SenderMonitorIntervalMetric("latency increase", _mi_metric_latency_increase, 0.0, 100.0),
     SenderMonitorIntervalMetric("latency ratio", _mi_metric_latency_ratio, 1.0, 10000.0),
     SenderMonitorIntervalMetric("send ratio", _mi_metric_send_ratio, 0.0, 1000.0),
-    SenderMonitorIntervalMetric("recv ratio", _mi_metric_recv_ratio, 0.0, 1000.0)
+    SenderMonitorIntervalMetric("recv ratio", _mi_metric_recv_ratio, 0.0, 1000.0),
+    SenderMonitorIntervalMetric("bytes_acked", _mi_metric_bytes_acked, 0.0, 1e9),
+    SenderMonitorIntervalMetric("bytes_sent", _mi_metric_bytes_sent, 0.0, 1e9),
+    SenderMonitorIntervalMetric("bytes_lost", _mi_metric_bytes_lost, 0.0, 1e9),
+    SenderMonitorIntervalMetric("send_start", _mi_metric_send_start, 0.0, 100.0),
+    SenderMonitorIntervalMetric("send_end", _mi_metric_send_end, 0.0, 100.0),
+    SenderMonitorIntervalMetric("recv_start", _mi_metric_recv_start, 0.0, 100.0),
+    SenderMonitorIntervalMetric("recv_end", _mi_metric_recv_end, 0.0, 100.0),
+    SenderMonitorIntervalMetric("packet_size", _mi_metric_packet_size, 0.0, 1e9),
+    SenderMonitorIntervalMetric("rtt_samples", _mi_metric_rtt_samples, 0.0, 100.0)
 ]
